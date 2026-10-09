@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+checkpoints/
+*.egg-info/
+node_modules/
+dist/
+out-tsc/
+.angular/
+.DS_Store
+backend/.data/
+frontend/public/generated/

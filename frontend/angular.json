@@ -1,0 +1,26 @@
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "newProjectRoot": "projects",
+  "projects": {
+    "astro-parallax-studio": {
+      "projectType": "application",
+      "root": "",
+      "sourceRoot": "src",
+      "prefix": "aps",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": { "browser": "src/main.ts", "tsConfig": "tsconfig.app.json", "assets": [{ "glob": "**/*", "input": "public" }], "styles": ["src/styles.css"] },
+          "configurations": { "production": { "outputHashing": "all", "budgets": [{ "type": "initial", "maximumWarning": "1.2MB", "maximumError": "1.8MB" }] } },
+          "defaultConfiguration": "production"
+        },
+        "serve": { "builder": "@angular/build:dev-server", "configurations": { "production": { "buildTarget": "astro-parallax-studio:build:production" }, "development": { "buildTarget": "astro-parallax-studio:build" } }, "defaultConfiguration": "development" },
+        "test": { "builder": "@angular/build:karma", "options": { "tsConfig": "tsconfig.spec.json", "polyfills": ["zone.js", "zone.js/testing"], "styles": ["src/styles.css"] } }
+      }
+    }
+  },
+  "cli": {
+    "analytics": "6ee3ce75-65bf-4ab3-8f1a-cbacb0ec2024"
+  }
+}

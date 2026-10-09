@@ -1,0 +1,1 @@
+"""Pluggable image-processing strategies."""
