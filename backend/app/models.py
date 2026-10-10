@@ -36,9 +36,9 @@ class CameraConfig(BaseModel):
     fov: float = 45.0
     near: float = 0.1
     far: float = 100.0
-    max_orbit_degrees: float = 18.0
-    min_distance: float = 2.5
-    max_distance: float = 8.0
+    max_orbit_degrees: float = 180.0
+    min_distance: float = 0.5
+    max_distance: float = 30.0
 
 
 class LayerTransform(BaseModel):

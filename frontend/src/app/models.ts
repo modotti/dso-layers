@@ -21,8 +21,10 @@ export interface ProjectResponse {
 export type ViewerMode = '3d' | 'original' | 'reconstructed' | 'difference' | 'depth' | 'confidence';
 export type DepthBrushTool = 'near' | 'far' | 'smooth' | 'protect';
 export interface DepthBrushSettings { tool: DepthBrushTool; size: number; strength: number }
+export interface LightingSettings { intensity: number; relief: number; direction: number }
 export interface EditorHistoryState { canUndo: boolean; canRedo: boolean; modified: boolean }
 export type ParallaxPath = 'horizontal' | 'vertical' | 'orbit';
 export interface GpuDiagnostics { maxTextureSize: number; renderer: string; previewWidth: number; previewHeight: number; sourceTooLarge: boolean }
 export interface CameraPathPose { position: [number, number, number]; target: [number, number, number] }
 export interface CameraPathState { start?: CameraPathPose; end?: CameraPathPose }
+export type CameraPathEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out';

@@ -13,8 +13,14 @@ describe('AppComponent', () => {
     const first = TestBed.createComponent(AppComponent).componentInstance;
     first.updatePreference('separation', 2.2);
     first.updateWarp(0.035);
+    first.updateLighting('intensity', .11);
+    first.updatePathDuration(16);
+    first.updatePathEasing('ease-out');
     const restored = TestBed.createComponent(AppComponent).componentInstance;
     expect(restored.separation).toBe(2.2);
     expect(restored.starSettings.warpStrength).toBe(0.035);
+    expect(restored.lighting.intensity).toBe(.11);
+    expect(restored.cameraPathDuration).toBe(16);
+    expect(restored.cameraPathEasing).toBe('ease-out');
   });
 });

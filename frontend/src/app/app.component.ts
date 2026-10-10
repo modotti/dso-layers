@@ -1,21 +1,24 @@
 import { CommonModule } from '@angular/common';
-import { Component, ViewChild, inject } from '@angular/core';
+import { Component, OnDestroy, ViewChild, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { finalize } from 'rxjs';
 import { ApiService } from './api.service';
-import { CameraPathState, DepthBrushSettings, DepthBrushTool, EditorHistoryState, GpuDiagnostics, ParallaxPath, ProjectResponse, SceneLayer, ViewerMode } from './models';
+import { CameraPathEasing, CameraPathState, DepthBrushSettings, DepthBrushTool, EditorHistoryState, GpuDiagnostics, LightingSettings, ParallaxPath, ProjectResponse, SceneLayer, ViewerMode } from './models';
 import { ViewerComponent } from './viewer/viewer.component';
 
-@Component({ selector: 'aps-root', standalone: true, imports: [CommonModule, FormsModule, ViewerComponent], templateUrl: './app.component.html', styleUrls: ['./app.component.css', './phase2.css', './depth-editor.css'] })
-export class AppComponent {
+@Component({ selector: 'aps-root', standalone: true, imports: [CommonModule, FormsModule, ViewerComponent], templateUrl: './app.component.html', styleUrls: ['./app.component.css', './phase2.css', './depth-editor.css', './lighting.css', './loading.css'] })
+export class AppComponent implements OnDestroy {
   @ViewChild(ViewerComponent) viewer?: ViewerComponent;
   private readonly api = inject(ApiService);
   starless: File | null = null; stars: File | null = null; project: ProjectResponse | null = null; busy = false; error = ''; mode: ViewerMode = '3d'; separation = 1;
   editorOpen = false;
   brush: DepthBrushSettings = { tool: 'near', size: 80, strength: .25 };
+  lighting: LightingSettings = { intensity: .06, relief: 1.2, direction: 135 };
   editorHistory: EditorHistoryState = { canUndo: false, canRedo: false, modified: false };
   soloLayerId: string | null = null; differenceGain = 8; gpu: GpuDiagnostics | null = null;
-  cameraPath: CameraPathState = {}; cameraPathDuration = 7;
+  cameraPath: CameraPathState = {}; cameraPathDuration = 7; cameraPathEasing: CameraPathEasing = 'ease-in-out';
+  cameraPathEasingOptions: { value: CameraPathEasing; label: string }[] = [{ value: 'ease-in-out', label: 'Cinematic' }, { value: 'linear', label: 'Linear' }, { value: 'ease-in', label: 'Ease in' }, { value: 'ease-out', label: 'Ease out' }];
+  loadingProgress = 0; loadingTitle = ''; loadingDetail = '';
+  private loadingTimer?: number;
   brushTools: { value: DepthBrushTool; label: string; hint: string }[] = [
     { value: 'near', label: 'Bring closer', hint: 'Lightens the active depth map' },
     { value: 'far', label: 'Push farther', hint: 'Darkens the active depth map' },
@@ -25,10 +28,22 @@ export class AppComponent {
   starSettings = { layerCount: 3, distribution: 'balanced', sensitivity: 3, backgroundMode: 'auto', warpStrength: 0.02, depthSmoothing: 18, absorptionStrength: 0.65, invertDepth: false, fineWarpRatio: 0.25, confidenceAmount: 0.7 };
   private readonly preferencesKey = 'astro-parallax.preferences.v1';
   constructor() { this.restorePreferences(); }
+  ngOnDestroy(): void { this.stopLoadingProgress(); }
   modes: {value: ViewerMode; label: string}[] = [{value:'3d',label:'3D view'},{value:'original',label:'Original'},{value:'reconstructed',label:'Reconstructed'},{value:'difference',label:'Difference'},{value:'depth',label:'Depth map'},{value:'confidence',label:'Stability'}];
   get comparisonUrl(): string | null { if (!this.project || this.mode === '3d') return null; const nebula = this.group('nebula')[0]; if (this.mode === 'depth') return (nebula?.invert_depth ? nebula.inverted_depth_texture_url : nebula?.depth_texture_url) ?? null; if (this.mode === 'confidence') return nebula?.confidence_texture_url ?? null; return this.mode === 'original' ? this.project.comparison.originalUrl : this.mode === 'reconstructed' ? this.project.comparison.reconstructedUrl : this.project.comparison.differenceUrl; }
   choose(event: Event, role: 'starless' | 'stars'): void { const file = (event.target as HTMLInputElement).files?.[0] ?? null; this[role] = file; this.error = ''; }
-  generate(): void { if (!this.starless || !this.stars || this.busy) return; this.savePreferences(); this.busy = true; this.error = ''; this.api.createProject(this.starless, this.stars, this.starSettings).pipe(finalize(() => this.busy = false)).subscribe({ next: project => { const previousProjectId = this.project?.projectId; this.applyLayerPreferences(project); this.project = project; this.mode = '3d'; this.soloLayerId = null; if (previousProjectId && previousProjectId !== project.projectId) this.api.deleteProject(previousProjectId); }, error: (error: Error) => this.error = error.message }); }
+  generate(): void { if (!this.starless || !this.stars || this.busy) return; this.savePreferences(); this.busy = true; this.error = ''; this.startLoadingProgress(); this.api.createProject(this.starless, this.stars, this.starSettings).subscribe({ next: project => { this.stopLoadingProgress(); this.setLoadingProgress(100); window.setTimeout(() => { const previousProjectId = this.project?.projectId; this.applyLayerPreferences(project); this.project = project; this.mode = '3d'; this.soloLayerId = null; this.busy = false; if (previousProjectId && previousProjectId !== project.projectId) this.api.deleteProject(previousProjectId); }, 250); }, error: (error: Error) => { this.stopLoadingProgress(); this.busy = false; this.error = error.message; } }); }
+  private startLoadingProgress(): void { this.stopLoadingProgress(); this.setLoadingProgress(4); this.loadingTimer = window.setInterval(() => { const increment = this.loadingProgress < 28 ? 2.2 : this.loadingProgress < 56 ? 1.1 : this.loadingProgress < 78 ? .55 : .18; this.setLoadingProgress(Math.min(94, this.loadingProgress + increment)); }, 220); }
+  private stopLoadingProgress(): void { if (this.loadingTimer !== undefined) { window.clearInterval(this.loadingTimer); this.loadingTimer = undefined; } }
+  private setLoadingProgress(progress: number): void { this.loadingProgress = progress; const stages = [
+    { at: 0, title: 'Reading source images', detail: 'Uploading and validating dimensions and color data…' },
+    { at: 18, title: 'Building nebula depth', detail: 'Analyzing emission, absorption, and broad structures…' },
+    { at: 40, title: 'Detecting stellar profiles', detail: 'Locating and measuring bright stellar regions…' },
+    { at: 62, title: 'Assigning depth layers', detail: 'Distributing stars and preparing the 3D scene…' },
+    { at: 78, title: 'Rendering previews', detail: 'Encoding textures and optimized GPU assets…' },
+    { at: 90, title: 'Finishing scene', detail: 'Completing assets, metrics, and final validation…' },
+    { at: 100, title: 'Scene ready', detail: 'Opening the interactive 3D viewer…' },
+  ]; const stage = [...stages].reverse().find(candidate => progress >= candidate.at)!; this.loadingTitle = stage.title; this.loadingDetail = stage.detail; }
   updateLayer(layer: SceneLayer): void { this.project = this.project ? {...this.project, scene: {...this.project.scene, layers: [...this.project.scene.layers]}} : null; this.savePreferences(); }
   resetLayer(layer: SceneLayer): void { const stars = this.group('stars'); const starIndex = stars.findIndex(candidate => candidate.id === layer.id); const initialDepth = layer.type === 'nebula' ? -.35 : -.15 + starIndex * (.6 / Math.max(1, stars.length - 1)); Object.assign(layer, { visible: true, opacity: 1, depth: initialDepth, transform: { position: {x:0,y:0,z:0}, scale: {x:1,y:1,z:1} } }); this.updateLayer(layer); }
   group(type: 'nebula'|'stars'): SceneLayer[] { return this.project?.scene.layers.filter(layer => layer.type === type) ?? []; }
@@ -38,13 +53,15 @@ export class AppComponent {
   setEditor(open: boolean): void { this.editorOpen = open; if (open) this.mode = '3d'; }
   setBrushTool(tool: DepthBrushTool): void { this.brush = { ...this.brush, tool }; this.savePreferences(); }
   updateBrush(parameter: 'size' | 'strength', value: number): void { this.brush = { ...this.brush, [parameter]: value }; this.savePreferences(); }
+  updateLighting(parameter: keyof LightingSettings, value: number): void { this.lighting = { ...this.lighting, [parameter]: value }; this.savePreferences(); }
   toggleSolo(layer: SceneLayer): void { this.soloLayerId = this.soloLayerId === layer.id ? null : layer.id; }
   preview(path: ParallaxPath): void { this.viewer?.startParallaxPreview(path); }
   updatePreference(parameter: 'separation' | 'differenceGain', value: number): void { this[parameter] = value; this.savePreferences(); }
   updateCameraPath(path: CameraPathState): void { this.cameraPath = path; this.savePreferences(); }
   updatePathDuration(value: number): void { this.cameraPathDuration = value; this.savePreferences(); }
-  savePreferences(): void { try { const previous = JSON.parse(localStorage.getItem(this.preferencesKey) ?? '{}'); const layers = this.project ? Object.fromEntries(this.project.scene.layers.map(layer => [layer.id, { visible: layer.visible, opacity: layer.opacity, depth: layer.depth, transform: layer.transform }])) : (previous.layers ?? {}); localStorage.setItem(this.preferencesKey, JSON.stringify({ starSettings: this.starSettings, separation: this.separation, differenceGain: this.differenceGain, brush: this.brush, cameraPath: this.cameraPath, cameraPathDuration: this.cameraPathDuration, layers })); } catch { /* localStorage can be unavailable in restricted contexts. */ } }
-  private restorePreferences(): void { try { const raw = localStorage.getItem(this.preferencesKey); if (!raw) return; const saved = JSON.parse(raw); if (saved.starSettings) Object.assign(this.starSettings, saved.starSettings); if (typeof saved.separation === 'number') this.separation = saved.separation; if (typeof saved.differenceGain === 'number') this.differenceGain = saved.differenceGain; if (saved.brush) this.brush = { ...this.brush, ...saved.brush }; if (saved.cameraPath) this.cameraPath = saved.cameraPath; if (typeof saved.cameraPathDuration === 'number') this.cameraPathDuration = saved.cameraPathDuration; } catch { /* Ignore malformed or inaccessible storage. */ } }
+  updatePathEasing(value: CameraPathEasing): void { this.cameraPathEasing = value; this.savePreferences(); }
+  savePreferences(): void { try { const previous = JSON.parse(localStorage.getItem(this.preferencesKey) ?? '{}'); const layers = this.project ? Object.fromEntries(this.project.scene.layers.map(layer => [layer.id, { visible: layer.visible, opacity: layer.opacity, depth: layer.depth, transform: layer.transform }])) : (previous.layers ?? {}); localStorage.setItem(this.preferencesKey, JSON.stringify({ starSettings: this.starSettings, separation: this.separation, differenceGain: this.differenceGain, brush: this.brush, lighting: this.lighting, cameraPath: this.cameraPath, cameraPathDuration: this.cameraPathDuration, cameraPathEasing: this.cameraPathEasing, layers })); } catch { /* localStorage can be unavailable in restricted contexts. */ } }
+  private restorePreferences(): void { try { const raw = localStorage.getItem(this.preferencesKey); if (!raw) return; const saved = JSON.parse(raw); if (saved.starSettings) Object.assign(this.starSettings, saved.starSettings); if (typeof saved.separation === 'number') this.separation = saved.separation; if (typeof saved.differenceGain === 'number') this.differenceGain = saved.differenceGain; if (saved.brush) this.brush = { ...this.brush, ...saved.brush }; if (saved.lighting) this.lighting = { ...this.lighting, ...saved.lighting }; if (saved.cameraPath) this.cameraPath = saved.cameraPath; if (typeof saved.cameraPathDuration === 'number') this.cameraPathDuration = Math.max(5, Math.min(20, saved.cameraPathDuration)); else if (typeof saved.cameraPathSpeed === 'number') this.cameraPathDuration = Math.max(5, Math.min(20, 7 / saved.cameraPathSpeed)); if (this.cameraPathEasingOptions.some(option => option.value === saved.cameraPathEasing)) this.cameraPathEasing = saved.cameraPathEasing; } catch { /* Ignore malformed or inaccessible storage. */ } }
   private applyLayerPreferences(project: ProjectResponse): void { try { const saved = JSON.parse(localStorage.getItem(this.preferencesKey) ?? '{}').layers ?? {}; for (const layer of project.scene.layers) { const attributes = saved[layer.id]; if (attributes) Object.assign(layer, attributes, { transform: { ...layer.transform, ...attributes.transform, position: { ...layer.transform.position, ...attributes.transform?.position }, scale: { ...layer.transform.scale, ...attributes.transform?.scale } } }); } } catch { /* Keep generated defaults when stored attributes are invalid. */ } }
   trackLayer(_: number, layer: SceneLayer): string { return layer.id; }
 }
