@@ -80,7 +80,7 @@ For camera distance `d`, vertical field of view `f`, and image aspect `a`, a pla
 
 ### Phase 1 — foundation and viewer (implemented)
 
-Angular standalone UI, FastAPI boundary, aligned-image validation, immutable source retention, scene schema, two compensated Three.js planes, constrained navigation, transforms, camera reset, additive reconstruction metrics, and original/reconstruction/difference comparison.
+Angular standalone UI, FastAPI boundary, aligned-image validation, immutable source retention, scene schema, two compensated Three.js planes, configurable full-orbit navigation, transforms, camera reset, additive reconstruction metrics, and original/reconstruction/difference comparison.
 
 ### Phase 2 — stars (implemented)
 
@@ -92,7 +92,7 @@ The current experiment replaces plane decomposition with a smooth artistic depth
 
 ### Phase 4 — visual refinement (implemented)
 
-Layer solo inspection, mirrored edge sampling for warp excursions, bounded orbit/pan, adjustable linear difference gain, horizontal/vertical/orbit preview paths, 2048-pixel GPU previews, WebGL texture-limit reporting, and depth-gradient/protected-area motion indicators. Full-resolution arrays remain the source of reconstruction metrics; only interactive media is downsampled.
+Layer solo inspection, mirrored edge sampling for warp excursions, full-orbit navigation with a broad zoom range, subtle depth-gradient lighting, adjustable linear difference gain, horizontal/vertical/orbit preview paths, cinematic camera paths with configurable duration and easing, 2048-pixel GPU previews, WebGL texture-limit reporting, and depth-gradient/protected-area motion indicators. Full-resolution arrays remain the source of reconstruction metrics; only interactive media is downsampled.
 
 ## Future seams (not implementations)
 

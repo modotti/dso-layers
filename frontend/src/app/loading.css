@@ -1,0 +1,28 @@
+.processing .progress-track {
+  width: min(360px, 62vw);
+  height: 7px;
+  margin-top: 22px;
+  overflow: hidden;
+  border: 1px solid #30374a;
+  border-radius: 999px;
+  background: #0a0d14;
+  box-shadow: inset 0 1px 4px #0009;
+}
+
+.processing .progress-track i {
+  display: block;
+  height: 100%;
+  border: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6554ca, #9a88ff, #69d8c0);
+  box-shadow: 0 0 16px #8874ee88;
+  transition: width 280ms ease-out;
+  animation: none;
+}
+
+.processing small {
+  margin-top: 8px;
+  color: #8f98ab;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}

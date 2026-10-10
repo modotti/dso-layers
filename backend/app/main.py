@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+from time import perf_counter
 from uuid import uuid4
 
 import numpy as np
@@ -15,6 +17,7 @@ from .processing.depth import create_artistic_depth_map
 from .store import MediaAsset, MemoryProjectStore
 
 MAX_UPLOAD_BYTES = 256 * 1024 * 1024
+logger = logging.getLogger("uvicorn.error").getChild("processing")
 store = MemoryProjectStore()
 app = FastAPI(title="Astro Parallax Studio API", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:4200"], allow_methods=["*"], allow_headers=["*"])
@@ -59,11 +62,27 @@ async def create_project(
     nebula_fine_warp_ratio: float = Form(0.25, ge=0.0, le=1.0),
     nebula_confidence_amount: float = Form(0.7, ge=0.0, le=1.0),
 ) -> ProjectResponse:
+    project_id = str(uuid4())
+    started_at = perf_counter()
+    previous_checkpoint = started_at
+
+    def checkpoint(message: str, **details: object) -> None:
+        nonlocal previous_checkpoint
+        now = perf_counter()
+        suffix = " ".join(f"{key}={value}" for key, value in details.items())
+        logger.info("[%s] %s step=%.2fs total=%.2fs%s", project_id, message, now - previous_checkpoint, now - started_at, f" {suffix}" if suffix else "")
+        previous_checkpoint = now
+
+    checkpoint("request received", starless=starless.filename or "starless", stars=stars.filename or "stars")
     starless_payload, stars_payload = await _read_upload(starless), await _read_upload(stars)
+    checkpoint("uploads read", starless_bytes=len(starless_payload), stars_bytes=len(stars_payload))
     base, stellar = load_image(starless.filename or "starless", starless_payload), load_image(stars.filename or "stars", stars_payload)
     validate_pair(base, stellar)
-    project_id = str(uuid4())
+    checkpoint("images decoded and validated", width=base.width, height=base.height)
+    checkpoint("generating nebula depth map")
     depth_result = create_artistic_depth_map(base.rgb_linear, smoothing=nebula_depth_smoothing, absorption_strength=nebula_absorption_strength, invert=False)
+    checkpoint("nebula depth map generated")
+    checkpoint("detecting and separating stars", layers=star_layer_count)
     star_result = StarLayerGenerator().process(
         stellar.rgb_linear,
         layer_count=star_layer_count,
@@ -71,6 +90,8 @@ async def create_project(
         background_mode=star_background_mode,  # type: ignore[arg-type]
         strategy=RankedVisualDepthStrategy(star_distribution),  # type: ignore[arg-type]
     )
+    checkpoint("stars separated", detected=len(star_result.candidates))
+    checkpoint("composing reconstruction")
     star_rgba_layers = [stars_to_straight_rgba(layer) for layer in star_result.layers_rgb]
     base_rgba = np.concatenate([base.rgb_linear, np.ones((*base.rgb_linear.shape[:2], 1), dtype=np.float32)], axis=2)
     star_canvas = np.zeros_like(base_rgba)
@@ -86,23 +107,30 @@ async def create_project(
     for star_rgba in star_rgba_layers:
         reference = source_over(star_rgba, np.concatenate([reference, np.ones((*reference.shape[:2], 1), dtype=np.float32)], axis=2))[..., :3]
     difference = np.clip(np.abs(reference - reconstructed), 0, 1)
+    checkpoint("reconstruction composed")
 
+    checkpoint("analyzing motion risk")
     preview_width, preview_height = preview_size(base.width, base.height)
     depth_gradient_y, depth_gradient_x = np.gradient(depth_result.depth_map)
     motion_gradient = np.hypot(depth_gradient_x, depth_gradient_y)
     motion_edge_risk = float(np.percentile(motion_gradient, 95))
     protected_area = float(100 * np.mean(depth_result.confidence_map < 0.5))
+    checkpoint("motion risk analyzed")
 
+    checkpoint("encoding preview assets", preview=f"{preview_width}x{preview_height}")
     assets = {
         "starless.png": png_bytes(resize_preview(base_rgba)), "nebula-depth.png": depth_png_bytes(resize_preview(depth_result.depth_map)), "nebula-depth-inverted.png": depth_png_bytes(resize_preview(1 - depth_result.depth_map)), "nebula-confidence.png": depth_png_bytes(resize_preview(depth_result.confidence_map)),
         "original.png": png_bytes(resize_preview(reference)), "reconstructed.png": png_bytes(resize_preview(reconstructed)), "difference.png": png_bytes(resize_preview(difference)),
     }
     for index, star_rgba in enumerate(star_rgba_layers, start=1):
         assets[f"stars-{index}.png"] = png_bytes(resize_preview(star_rgba))
+    checkpoint("preview assets encoded", assets=len(assets))
+    checkpoint("storing project assets")
     for name, payload in assets.items():
         store.put_media(project_id, name, MediaAsset(payload))
     store.put_source(project_id, "starless", base.source_bytes)
     store.put_source(project_id, "stars", stellar.source_bytes)
+    checkpoint("project assets stored")
     prefix = f"/media/{project_id}"
     source = ImageMetadata(width=base.width, height=base.height, channels=3, bit_depth=max(base.bit_depth, stellar.bit_depth), format=f"{base.format}+{stellar.format}", transfer=base.transfer, embedded_profile=base.embedded_profile or stellar.embedded_profile)
     depth_step = 0.6 / max(1, star_layer_count - 1)
@@ -114,9 +142,11 @@ async def create_project(
     )
     star_metrics = ReconstructionMetrics.model_validate(metrics(reference_stars, reconstructed_stars))
     combined = ReconstructionMetrics.model_validate(metrics(reference, reconstructed))
+    checkpoint("reconstruction metrics calculated")
     warnings = list(dict.fromkeys((*base.warnings, *stellar.warnings)))
     if not star_result.candidates:
         warnings.append("No star candidates crossed the detection threshold; the full signal was preserved in the far layer.")
+    checkpoint("request complete", warnings=len(warnings))
     return ProjectResponse(projectId=project_id, scene=scene, metrics=MetricGroups(stars=star_metrics, combined=combined), comparison=ComparisonUrls(originalUrl=f"{prefix}/original.png", reconstructedUrl=f"{prefix}/reconstructed.png", differenceUrl=f"{prefix}/difference.png"), warnings=warnings)
 
 

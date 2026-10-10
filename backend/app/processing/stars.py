@@ -146,8 +146,13 @@ class StarLayerGenerator:
             # keeps faint halos whole and guarantees that no pixel is duplicated.
             seed_background = np.where(detection.labels > 0, 0, 255).astype(np.uint8)
             _, nearest = cv2.distanceTransformWithLabels(seed_background, cv2.DIST_L2, 5, labelType=cv2.DIST_LABEL_CCOMP)
+            component_layers = np.zeros(len(detection.candidates) + 1, dtype=np.uint8)
             for candidate, layer_index in zip(detection.candidates, assignments, strict=True):
-                layers[layer_index][nearest == candidate.label] = detection.signal_rgb[nearest == candidate.label]
+                component_layers[candidate.label] = layer_index
+            pixel_layers = component_layers[nearest]
+            for layer_index, layer in enumerate(layers):
+                layer_mask = pixel_layers == layer_index
+                layer[layer_mask] = detection.signal_rgb[layer_mask]
         else:
             layers[0][...] = detection.signal_rgb
         return StarDecompositionResult(tuple(layers), detection.candidates, assignments, detection.threshold, detection.background_level)

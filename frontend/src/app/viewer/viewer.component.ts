@@ -1,7 +1,7 @@
 import { AfterViewInit, Component, ElementRef, Input, NgZone, OnChanges, OnDestroy, Output, EventEmitter, SimpleChanges, ViewChild, inject } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { CameraPathState, DepthBrushSettings, EditorHistoryState, GpuDiagnostics, ParallaxPath, SceneDocument, SceneLayer, ViewerMode } from '../models';
+import { CameraPathEasing, CameraPathState, DepthBrushSettings, EditorHistoryState, GpuDiagnostics, LightingSettings, ParallaxPath, SceneDocument, SceneLayer, ViewerMode } from '../models';
 
 interface EditSnapshot { depth: Uint8ClampedArray; confidence: Uint8ClampedArray }
 interface EditableMaps {
@@ -21,8 +21,10 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() separation = 1;
   @Input() soloLayerId: string | null = null;
   @Input() differenceGain = 8;
+  @Input() lighting: LightingSettings = { intensity: .06, relief: 1.2, direction: 135 };
   @Input() cameraPath: CameraPathState = {};
   @Input() cameraPathDuration = 7;
+  @Input() cameraPathEasing: CameraPathEasing = 'ease-in-out';
   @Input() editorEnabled = false;
   @Input() brush: DepthBrushSettings = { tool: 'near', size: 80, strength: .25 };
   @Output() historyChange = new EventEmitter<EditorHistoryState>();
@@ -52,6 +54,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   captureCameraPoint(point: 'start' | 'end'): void { if (!this.camera || !this.controls) return; const pose = { position: this.camera.position.toArray() as [number, number, number], target: this.controls.target.toArray() as [number, number, number] }; this.cameraPathChange.emit({ ...this.cameraPath, [point]: pose }); }
   goToCameraPoint(point: 'start' | 'end'): void { const pose = this.cameraPath[point]; if (!pose || !this.camera || !this.controls) return; this.previewStarted = 0; this.zoomStarted = 0; this.cameraPathStarted = 0; this.driftZoom = false; this.camera.position.fromArray(pose.position); this.controls.target.fromArray(pose.target); this.camera.lookAt(this.controls.target); this.camera.updateMatrixWorld(true); this.controls.update(); }
   playCameraPath(): void { if (!this.cameraPath.start || !this.cameraPath.end) return; this.previewStarted = 0; this.zoomStarted = 0; this.driftZoom = false; this.cameraPathStarted = performance.now(); }
+  private easeCameraPath(phase: number): number { if (this.cameraPathEasing === 'linear') return phase; if (this.cameraPathEasing === 'ease-in') return phase ** 3; if (this.cameraPathEasing === 'ease-out') return 1 - (1 - phase) ** 3; return phase * phase * phase * (phase * (phase * 6 - 15) + 10); }
   undoEdit(): void { if (!this.editable?.undo.length) return; const current = this.captureSnapshot(); const previous = this.editable.undo.pop(); if (!current || !previous) return; this.editable.redo.push(current); this.restoreSnapshot(previous); this.emitHistory(); }
   redoEdit(): void { if (!this.editable?.redo.length) return; const current = this.captureSnapshot(); const next = this.editable.redo.pop(); if (!current || !next) return; this.editable.undo.push(current); this.restoreSnapshot(next); this.emitHistory(); }
   resetEdits(): void { if (!this.editable) return; this.restoreSnapshot(this.editable.original); this.editable.undo = []; this.editable.redo = []; this.emitHistory(); }
@@ -61,8 +64,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false }); this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); this.renderer.outputColorSpace = THREE.SRGBColorSpace; this.renderer.setClearColor(0x03050a); element.appendChild(this.renderer.domElement);
     Object.assign(this.renderer.domElement.style, { display: 'block', position: 'absolute', inset: '0', width: '100%', height: '100%' });
     this.camera = new THREE.PerspectiveCamera(45, 1, .1, 100); this.camera.position.set(0, 0, 5);
-    this.controls = new OrbitControls(this.camera, this.renderer.domElement); this.controls.enableDamping = true; this.controls.minDistance = 3.5; this.controls.maxDistance = 7; this.controls.maxPolarAngle = Math.PI / 2 + .31; this.controls.minPolarAngle = Math.PI / 2 - .31;
-    this.controls.minAzimuthAngle = -.42; this.controls.maxAzimuthAngle = .42;
+    this.controls = new OrbitControls(this.camera, this.renderer.domElement); this.controls.enableDamping = true; this.controls.minDistance = .5; this.controls.maxDistance = 30; this.controls.minPolarAngle = .001; this.controls.maxPolarAngle = Math.PI - .001;
     this.controls.addEventListener('start', () => { this.previewStarted = 0; this.zoomStarted = 0; this.cameraPathStarted = 0; });
     this.renderer.domElement.addEventListener('pointerdown', this.onPointerDown); this.renderer.domElement.addEventListener('pointermove', this.onPointerMove); this.renderer.domElement.addEventListener('pointerup', this.onPointerUp); this.renderer.domElement.addEventListener('pointercancel', this.onPointerUp); this.renderer.domElement.addEventListener('pointerleave', this.onPointerLeave);
     this.observer = new ResizeObserver(() => this.resize()); this.observer.observe(element); this.resize();
@@ -73,7 +75,10 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   private sceneKey(): string { return this.scene?.layers.map(layer => `${layer.id}:${layer.texture_url}:${layer.depth_texture_url ?? ''}:${layer.confidence_texture_url ?? ''}`).join('|') ?? ''; }
   private async loadScene(): Promise<void> {
     const generation = ++this.sceneLoadGeneration; const scene = this.scene; this.comparisonRequest++; this.disposeComparison(); this.disposeMeshes(); if (!scene || !this.camera || !this.controls) return;
-    this.camera.fov = scene.camera.fov; this.camera.near = scene.camera.near; this.camera.far = scene.camera.far; this.controls.minDistance = scene.camera.min_distance; this.controls.maxDistance = scene.camera.max_distance; this.resetCamera();
+    this.camera.fov = scene.camera.fov; this.camera.near = scene.camera.near; this.camera.far = scene.camera.far; this.controls.minDistance = scene.camera.min_distance; this.controls.maxDistance = scene.camera.max_distance;
+    const orbit = THREE.MathUtils.degToRad(THREE.MathUtils.clamp(scene.camera.max_orbit_degrees, 0, 180));
+    this.controls.minAzimuthAngle = -orbit; this.controls.maxAzimuthAngle = orbit;
+    this.controls.minPolarAngle = Math.max(.001, Math.PI / 2 - orbit); this.controls.maxPolarAngle = Math.min(Math.PI - .001, Math.PI / 2 + orbit); this.resetCamera();
     const loader = new THREE.TextureLoader();
     await Promise.all(scene.layers.map(async layer => {
       const [texture, loadedDepth, loadedInverted, loadedConfidence] = await Promise.all([
@@ -118,7 +123,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   }
   private createWarpMaterial(texture: THREE.Texture, depthTexture: THREE.Texture, invertedDepthTexture: THREE.Texture, confidenceTexture: THREE.Texture, opacity: number, strength: number, inverted: boolean, fineWarpRatio: number, confidenceAmount: number, width: number, height: number): THREE.ShaderMaterial {
     return new THREE.ShaderMaterial({
-      uniforms: { map: { value: texture }, depthMap: { value: depthTexture }, invertedDepthMap: { value: invertedDepthTexture }, confidenceMap: { value: confidenceTexture }, viewOffset: { value: new THREE.Vector2() }, texelSize: { value: new THREE.Vector2(1 / width, 1 / height) }, strength: { value: strength }, opacity: { value: opacity }, invertDepth: { value: inverted ? 1 : 0 }, fineWarpRatio: { value: fineWarpRatio }, confidenceAmount: { value: confidenceAmount } },
+      uniforms: { map: { value: texture }, depthMap: { value: depthTexture }, invertedDepthMap: { value: invertedDepthTexture }, confidenceMap: { value: confidenceTexture }, viewOffset: { value: new THREE.Vector2() }, texelSize: { value: new THREE.Vector2(1 / width, 1 / height) }, strength: { value: strength }, opacity: { value: opacity }, invertDepth: { value: inverted ? 1 : 0 }, fineWarpRatio: { value: fineWarpRatio }, confidenceAmount: { value: confidenceAmount }, lightIntensity: { value: this.lighting.intensity }, relief: { value: this.lighting.relief }, lightDirection: { value: this.lightDirection() } },
       vertexShader: `varying vec2 vUv;
         void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
       fragmentShader: `uniform sampler2D map;
@@ -132,6 +137,9 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
         uniform float invertDepth;
         uniform float fineWarpRatio;
         uniform float confidenceAmount;
+        uniform float lightIntensity;
+        uniform float relief;
+        uniform vec2 lightDirection;
         varying vec2 vUv;
         vec4 softSample(vec2 uv) {
           vec2 radius = texelSize * 3.0;
@@ -152,6 +160,18 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
           vec4 broadColor = softSample(broadUv);
           vec4 fineColor = texture2D(map, fineUv) - softSample(fineUv);
           vec4 color = clamp(broadColor + fineColor, 0.0, 1.0);
+          float depthLeft = mix(texture2D(depthMap, broadUv - vec2(texelSize.x * 2.0, 0.0)).r, texture2D(invertedDepthMap, broadUv - vec2(texelSize.x * 2.0, 0.0)).r, invertDepth);
+          float depthRight = mix(texture2D(depthMap, broadUv + vec2(texelSize.x * 2.0, 0.0)).r, texture2D(invertedDepthMap, broadUv + vec2(texelSize.x * 2.0, 0.0)).r, invertDepth);
+          float depthDown = mix(texture2D(depthMap, broadUv - vec2(0.0, texelSize.y * 2.0)).r, texture2D(invertedDepthMap, broadUv - vec2(0.0, texelSize.y * 2.0)).r, invertDepth);
+          float depthUp = mix(texture2D(depthMap, broadUv + vec2(0.0, texelSize.y * 2.0)).r, texture2D(invertedDepthMap, broadUv + vec2(0.0, texelSize.y * 2.0)).r, invertDepth);
+          vec3 normal = normalize(vec3((depthLeft - depthRight) * relief * 18.0, (depthDown - depthUp) * relief * 18.0, 1.0));
+          vec3 light = normalize(vec3(lightDirection, 1.15));
+          float diffuse = dot(normal, light);
+          vec3 view = normalize(vec3(viewOffset * 0.22, 1.0));
+          float rim = pow(1.0 - max(dot(normal, view), 0.0), 2.0);
+          float motionReveal = 0.35 + min(length(viewOffset) * 0.45, 0.65);
+          float lighting = 1.0 + lightIntensity * motionReveal * ((diffuse - 0.58) * 1.35 + rim * 0.45);
+          color.rgb = clamp(color.rgb * lighting, 0.0, 1.0);
           gl_FragColor = vec4(color.rgb, color.a * opacity);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
@@ -178,7 +198,8 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     if (!this.scene || !this.camera) return; const distance = this.scene.camera.position[2] - depth; const height = 2 * distance * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)); const width = height * this.scene.source.width / this.scene.source.height;
     mesh.position.set(position.x, position.y, depth + position.z); mesh.scale.set(width * scale.x, height * scale.y, scale.z);
   }
-  private applyLayers(): void { if (!this.scene) return; for (const layer of this.scene.layers) { const mesh = this.meshes.get(layer.id); if (!mesh) continue; mesh.visible = this.mode === '3d' && layer.visible && (!this.soloLayerId || this.soloLayerId === layer.id); if (mesh.material instanceof THREE.ShaderMaterial) { mesh.material.uniforms['opacity'].value = layer.opacity; mesh.material.uniforms['strength'].value = layer.warp_strength ?? 0; mesh.material.uniforms['invertDepth'].value = layer.invert_depth ? 1 : 0; mesh.material.uniforms['fineWarpRatio'].value = layer.fine_warp_ratio ?? .25; mesh.material.uniforms['confidenceAmount'].value = layer.confidence_amount ?? .7; } else if (mesh.material instanceof THREE.MeshBasicMaterial) { mesh.material.opacity = layer.opacity; } this.sizePlane(mesh, layer.depth * this.separation, layer.transform.position, layer.transform.scale); } }
+  private lightDirection(): THREE.Vector2 { const radians = THREE.MathUtils.degToRad(this.lighting.direction); return new THREE.Vector2(Math.cos(radians), Math.sin(radians)); }
+  private applyLayers(): void { if (!this.scene) return; for (const layer of this.scene.layers) { const mesh = this.meshes.get(layer.id); if (!mesh) continue; mesh.visible = this.mode === '3d' && layer.visible && (!this.soloLayerId || this.soloLayerId === layer.id); if (mesh.material instanceof THREE.ShaderMaterial) { mesh.material.uniforms['opacity'].value = layer.opacity; mesh.material.uniforms['strength'].value = layer.warp_strength ?? 0; mesh.material.uniforms['invertDepth'].value = layer.invert_depth ? 1 : 0; mesh.material.uniforms['fineWarpRatio'].value = layer.fine_warp_ratio ?? .25; mesh.material.uniforms['confidenceAmount'].value = layer.confidence_amount ?? .7; mesh.material.uniforms['lightIntensity'].value = this.lighting.intensity; mesh.material.uniforms['relief'].value = this.lighting.relief; mesh.material.uniforms['lightDirection'].value.copy(this.lightDirection()); } else if (mesh.material instanceof THREE.MeshBasicMaterial) { mesh.material.opacity = layer.opacity; } this.sizePlane(mesh, layer.depth * this.separation, layer.transform.position, layer.transform.scale); } }
   private applyMode(): void { if (!this.scene) return; for (const layer of this.scene.layers) { const mesh = this.meshes.get(layer.id); if (mesh) mesh.visible = this.mode === '3d' && layer.visible && (!this.soloLayerId || this.soloLayerId === layer.id); } }
   private onPointerDown = (event: PointerEvent): void => {
     if (!this.editorEnabled || event.button !== 0) return; const uv = this.pointerUv(event); if (!uv || !this.editable) return;
@@ -214,9 +235,9 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     this.frame = requestAnimationFrame(this.animate);
     if (this.previewStarted && this.camera && this.controls) { const elapsed = performance.now() - this.previewStarted; const duration = 4200; if (elapsed < duration) { const phase = elapsed / duration; const envelope = Math.sin(phase * Math.PI); const angle = phase * Math.PI * 2; const horizontalRange = this.previewPath === 'orbit' ? .72 : .82; const verticalRange = this.previewPath === 'orbit' ? .48 : .58; const x = this.previewPath === 'vertical' ? 0 : Math.sin(angle) * horizontalRange * envelope; const y = this.previewPath === 'horizontal' ? 0 : (this.previewPath === 'orbit' ? Math.cos(angle) : Math.sin(angle)) * verticalRange * envelope; this.camera.position.set(this.controls.target.x + x, this.controls.target.y + y, this.scene?.camera.position[2] ?? 5); this.controls.update(); } else { this.previewStarted = 0; this.resetCamera(); } }
     if (this.zoomStarted && this.camera && this.controls) { const phase = Math.min(1, (performance.now() - this.zoomStarted) / 5000); const eased = phase * phase * phase * (phase * (phase * 6 - 15) + 10); const distance = THREE.MathUtils.lerp(this.zoomFrom, this.zoomTo, eased); this.camera.position.copy(this.controls.target).addScaledVector(this.zoomDirection, distance); if (this.driftZoom) { const envelope = Math.sin(Math.PI * phase) ** 2; const driftX = Math.sin(phase * Math.PI * 2 + this.driftPhaseX) * this.driftAmplitudeX * envelope; const driftY = Math.sin(phase * Math.PI * 3 + this.driftPhaseY) * this.driftAmplitudeY * envelope; this.camera.position.x += driftX; this.camera.position.y += driftY; } this.controls.update(); if (phase >= 1) { this.zoomStarted = 0; this.driftZoom = false; } }
-    if (this.cameraPathStarted && this.camera && this.controls && this.cameraPath.start && this.cameraPath.end) { const duration = THREE.MathUtils.clamp(this.cameraPathDuration, 5, 10) * 1000; const phase = Math.min(1, (performance.now() - this.cameraPathStarted) / duration); const eased = phase * phase * phase * (phase * (phase * 6 - 15) + 10); const startPosition = new THREE.Vector3().fromArray(this.cameraPath.start.position); const endPosition = new THREE.Vector3().fromArray(this.cameraPath.end.position); const startTarget = new THREE.Vector3().fromArray(this.cameraPath.start.target); const endTarget = new THREE.Vector3().fromArray(this.cameraPath.end.target); this.camera.position.lerpVectors(startPosition, endPosition, eased); this.controls.target.lerpVectors(startTarget, endTarget, eased); this.controls.update(); if (phase >= 1) this.cameraPathStarted = 0; }
-    if (this.controls && !this.previewStarted) { this.controls.target.x = THREE.MathUtils.clamp(this.controls.target.x, -.35, .35); this.controls.target.y = THREE.MathUtils.clamp(this.controls.target.y, -.35, .35); this.controls.update(); }
-    if (this.camera && this.controls && this.scene) { const origin = this.scene.camera.position; const target = this.scene.camera.target; const relativeX = (this.camera.position.x - this.controls.target.x) - (origin[0] - target[0]); const relativeY = (this.camera.position.y - this.controls.target.y) - (origin[1] - target[1]); for (const mesh of this.meshes.values()) if (mesh.material instanceof THREE.ShaderMaterial) mesh.material.uniforms['viewOffset'].value.set(relativeX, relativeY); }
+    if (this.cameraPathStarted && this.camera && this.controls && this.cameraPath.start && this.cameraPath.end) { const duration = THREE.MathUtils.clamp(this.cameraPathDuration, 5, 20) * 1000; const phase = Math.min(1, (performance.now() - this.cameraPathStarted) / duration); const eased = this.easeCameraPath(phase); const startPosition = new THREE.Vector3().fromArray(this.cameraPath.start.position); const endPosition = new THREE.Vector3().fromArray(this.cameraPath.end.position); const startTarget = new THREE.Vector3().fromArray(this.cameraPath.start.target); const endTarget = new THREE.Vector3().fromArray(this.cameraPath.end.target); this.camera.position.lerpVectors(startPosition, endPosition, eased); this.controls.target.lerpVectors(startTarget, endTarget, eased); this.controls.update(); if (phase >= 1) this.cameraPathStarted = 0; }
+    if (this.controls && !this.previewStarted) this.controls.update();
+    if (this.camera && this.controls && this.scene) { const origin = this.scene.camera.position; const target = this.scene.camera.target; const relativeX = (this.camera.position.x - this.controls.target.x) - (origin[0] - target[0]); const relativeY = (this.camera.position.y - this.controls.target.y) - (origin[1] - target[1]); for (const mesh of this.meshes.values()) if (mesh.material instanceof THREE.ShaderMaterial && mesh.material.uniforms['viewOffset']) mesh.material.uniforms['viewOffset'].value.set(relativeX, relativeY); }
     if (this.renderer && this.camera) { if (this.mode === '3d') this.renderer.render(this.world, this.camera); else this.renderer.render(this.comparisonWorld, this.comparisonCamera); }
   };
   private disposeMeshes(): void { for (const mesh of this.meshes.values()) { this.world.remove(mesh); mesh.geometry.dispose(); if (mesh.material instanceof THREE.ShaderMaterial) { (mesh.material.uniforms['map'].value as THREE.Texture).dispose(); const depthMap = mesh.material.uniforms['depthMap'].value as THREE.Texture; const invertedDepthMap = mesh.material.uniforms['invertedDepthMap'].value as THREE.Texture; const confidenceMap = mesh.material.uniforms['confidenceMap'].value as THREE.Texture; depthMap.dispose(); if (invertedDepthMap !== depthMap) invertedDepthMap.dispose(); if (confidenceMap !== depthMap && confidenceMap !== invertedDepthMap) confidenceMap.dispose(); } else if (mesh.material instanceof THREE.MeshBasicMaterial) mesh.material.map?.dispose(); mesh.material.dispose(); } this.meshes.clear(); this.editable = undefined; this.emitHistory(); }

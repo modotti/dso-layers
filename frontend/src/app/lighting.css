@@ -1,0 +1,12 @@
+.global h3 {
+  margin: 0 0 12px;
+  color: #949daf;
+  font-size: 11px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.global label + label {
+  display: block;
+  margin-top: 12px;
+}
