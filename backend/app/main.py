@@ -52,7 +52,7 @@ async def create_project(
     star_distribution: str = Form("balanced", pattern="^(balanced|brightness|size)$"),
     star_sensitivity: float = Form(3.0, ge=1.0, le=8.0),
     star_background_mode: str = Form("auto", pattern="^(auto|none)$"),
-    nebula_warp_strength: float = Form(0.06, ge=0.0, le=0.10),
+    nebula_warp_strength: float = Form(0.02, ge=0.0, le=0.10),
     nebula_depth_smoothing: float = Form(18.0, ge=2.0, le=80.0),
     nebula_absorption_strength: float = Form(0.65, ge=0.0, le=1.0),
     nebula_depth_invert: bool = Form(False),
