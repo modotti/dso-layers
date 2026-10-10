@@ -86,7 +86,7 @@ async def create_project(
     difference = np.clip(np.abs(reference - reconstructed) * 8, 0, 1)
 
     assets = {
-        "starless.png": png_bytes(base_rgba), "nebula-depth.png": depth_png_bytes(depth_result.depth_map),
+        "starless.png": png_bytes(base_rgba), "nebula-depth.png": depth_png_bytes(depth_result.depth_map), "nebula-depth-inverted.png": depth_png_bytes(1 - depth_result.depth_map),
         "original.png": png_bytes(reference), "reconstructed.png": png_bytes(reconstructed), "difference.png": png_bytes(difference),
     }
     for index, star_rgba in enumerate(star_rgba_layers, start=1):
@@ -98,7 +98,7 @@ async def create_project(
     prefix = f"/media/{project_id}"
     source = ImageMetadata(width=base.width, height=base.height, channels=3, bit_depth=max(base.bit_depth, stellar.bit_depth), format=f"{base.format}+{stellar.format}", transfer=base.transfer, embedded_profile=base.embedded_profile or stellar.embedded_profile)
     depth_step = 0.6 / max(1, star_layer_count - 1)
-    layers = [SceneLayer(id="nebula-input", name="Warped starless", type="nebula", texture_url=f"{prefix}/starless.png", depth_texture_url=f"{prefix}/nebula-depth.png", warp_strength=nebula_warp_strength, invert_depth=nebula_depth_invert, depth=-0.35, order=0)]
+    layers = [SceneLayer(id="nebula-input", name="Warped starless", type="nebula", texture_url=f"{prefix}/starless.png", depth_texture_url=f"{prefix}/nebula-depth.png", inverted_depth_texture_url=f"{prefix}/nebula-depth-inverted.png", warp_strength=nebula_warp_strength, invert_depth=nebula_depth_invert, depth=-0.35, order=0)]
     layers.extend(SceneLayer(id=f"stars-{index + 1}", name=("Distant stars", "Mid-field stars", "Near stars")[index] if star_layer_count == 3 else f"Star depth {index + 1}", type="stars", texture_url=f"{prefix}/stars-{index + 1}.png", depth=-0.15 + index * depth_step, order=index + 1) for index in range(star_layer_count))
     scene = SceneDocument(
         name=(starless.filename or "Untitled scene").rsplit(".", 1)[0], source=source, layers=layers,

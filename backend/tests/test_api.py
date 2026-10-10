@@ -24,6 +24,8 @@ def test_project_returns_versioned_scene_and_media():
     nebula = next(layer for layer in body["scene"]["layers"] if layer["type"] == "nebula")
     assert nebula["depth_texture_url"].endswith("/nebula-depth.png")
     assert client.get(nebula["depth_texture_url"]).status_code == 200
+    assert nebula["inverted_depth_texture_url"].endswith("/nebula-depth-inverted.png")
+    assert client.get(nebula["inverted_depth_texture_url"]).status_code == 200
     assert body["metrics"]["stars"]["mae"] == 0
     assert client.get(body["comparison"]["differenceUrl"]).status_code == 200
 
