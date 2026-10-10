@@ -1,6 +1,10 @@
-import numpy as np
+from io import BytesIO
 
-from app.imaging import metrics, source_over, stars_to_straight_rgba
+import numpy as np
+import tifffile
+from PIL import Image
+
+from app.imaging import load_image, metrics, png_bytes, source_over, stars_to_straight_rgba
 
 
 def test_stars_straight_alpha_reconstructs_signal_over_black():
@@ -23,3 +27,14 @@ def test_metrics_are_zero_for_identical_images():
     result = metrics(image, image)
     assert result["mae"] == result["rmse"] == result["maxError"] == 0
     assert result["pixelsOverTolerancePercent"] == 0
+
+
+def test_unprofiled_tiff_keeps_display_brightness_in_png_preview():
+    source = np.array([[[12, 64, 128], [180, 220, 250]]], dtype=np.uint8)
+    tiff = BytesIO()
+    tifffile.imwrite(tiff, source, photometric="rgb")
+
+    loaded = load_image("source.tiff", tiff.getvalue())
+    preview = np.asarray(Image.open(BytesIO(png_bytes(loaded.rgb_linear))))
+
+    np.testing.assert_allclose(preview, source, atol=1)

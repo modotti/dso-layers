@@ -51,7 +51,7 @@ The versioned `SceneDocument` contains source dimensions and color metadata; coo
 
 ## Alpha and color conventions
 
-Processing uses normalized float32 linear-light RGB. Integer samples are normalized by their actual dtype range. PNG transfer characteristics are treated as sRGB unless explicitly marked; TIFF samples without supported profile metadata are conservatively reported as `unknown`. No source bytes are rewritten.
+Processing uses normalized float32 linear-light RGB. Integer samples are normalized by their actual dtype range. PNG transfer characteristics are treated as sRGB unless explicitly marked; TIFF samples without supported profile metadata are reported as `unknown` and interpreted as display-referred sRGB for preview fidelity. No source bytes are rewritten.
 
 Exported and preview RGBA textures use **straight alpha** in sRGB-encoded 8-bit PNG. Three.js textures are tagged `SRGBColorSpace`, materials use `transparent: true`, `premultipliedAlpha: false`, normal source-over blending, disabled depth writes, and explicit render order. Layer reconstruction is defined back-to-front by:
 

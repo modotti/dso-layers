@@ -81,7 +81,11 @@ def load_image(filename: str, payload: bytes) -> LoadedImage:
     if width * height > MAX_PIXELS:
         raise ImageValidationError("image_too_large", f"Image exceeds the {MAX_PIXELS:,}-pixel safety limit.")
     normalized, bit_depth = _normalize(raw)
-    linear = srgb_to_linear(normalized) if transfer == "srgb" else normalized
+    # Browser previews always interpret the generated PNG textures as sRGB.
+    # Unprofiled TIFFs are therefore decoded as display-referred sRGB too; if
+    # their samples were passed through unchanged, png_bytes() would encode a
+    # second transfer curve and visibly lift shadows and midtones.
+    linear = srgb_to_linear(normalized) if transfer in {"srgb", "unknown"} else normalized
     return LoadedImage(payload, linear, width, height, channels, bit_depth, fmt, transfer, profile, warnings)
 
 
