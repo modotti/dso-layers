@@ -26,8 +26,8 @@ MAX_VIDEO_UPLOAD_BYTES = 512 * 1024 * 1024
 VIDEO_EFFECTS = {
     "soft-reflections": {
         "path": Path(__file__).resolve().parents[1] / "assets" / "video-effects" / "soft-reflections.mp4",
-        "blend_mode": "addition",
-        "opacity": 0.14,
+        "blend_mode": "screen",
+        "opacity": 0.07,
     },
 }
 logger = logging.getLogger("uvicorn.error").getChild("processing")

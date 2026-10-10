@@ -96,15 +96,15 @@ def test_video_light_effect_is_composited_with_ffmpeg(monkeypatch, tmp_path):
     effect_path = tmp_path / "soft-reflections.mp4"
     effect_path.write_bytes(b"effect-video")
     monkeypatch.setattr("app.main.shutil.which", lambda _: "/usr/local/bin/ffmpeg")
-    monkeypatch.setattr("app.main.VIDEO_EFFECTS", {"soft-reflections": {"path": effect_path, "blend_mode": "addition", "opacity": 0.14}})
+    monkeypatch.setattr("app.main.VIDEO_EFFECTS", {"soft-reflections": {"path": effect_path, "blend_mode": "screen", "opacity": 0.07}})
 
     def convert(command, **_):
         assert "-stream_loop" in command
         assert str(effect_path) in command
         filter_graph = command[command.index("-filter_complex") + 1]
         assert "scale2ref=w=rw:h=rh" in filter_graph
-        assert "all_mode=addition" in filter_graph
-        assert "all_opacity=0.14" in filter_graph
+        assert "all_mode=screen" in filter_graph
+        assert "all_opacity=0.07" in filter_graph
         Path(command[-1]).write_bytes(b"mp4-with-reflections")
         return SimpleNamespace(returncode=0, stderr="")
 
