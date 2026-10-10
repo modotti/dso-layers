@@ -42,4 +42,9 @@ describe('AppComponent', () => {
     expect(component.cameraPathDuration).toBe(12);
     expect(component.cameraPathEasing).toBe('ease-out');
   });
+  it('limits the camera timeline to five movements', () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    for (let index = 0; index < 8; index++) component.addMovement();
+    expect(component.cameraMovements.length).toBe(5);
+  });
 });

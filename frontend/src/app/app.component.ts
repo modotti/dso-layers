@@ -16,6 +16,7 @@ export class AppComponent implements OnDestroy {
   editorHistory: EditorHistoryState = { canUndo: false, canRedo: false, modified: false };
   soloLayerId: string | null = null; differenceGain = 8; gpu: GpuDiagnostics | null = null;
   cameraMovements: CameraMovement[] = [{ id: 'movement-1', path: {}, duration: 7, easing: 'ease-in-out' }]; activeMovementIndex = 0; cameraRoll = 0; cameraPlayback = false;
+  readonly maxCameraMovements = 5;
   cameraPathEasingOptions: { value: CameraPathEasing; label: string }[] = [{ value: 'ease-in-out', label: 'Cinematic' }, { value: 'linear', label: 'Linear' }, { value: 'ease-in', label: 'Ease in' }, { value: 'ease-out', label: 'Ease out' }];
   videoExport: VideoExportSettings = { width: 1920, height: 1080, fps: 30 }; videoExporting = false;
   videoPresets = [{ label: 'Full HD · 16:9', width: 1920, height: 1080 }, { label: 'Square · 1:1', width: 1080, height: 1080 }, { label: 'Portrait · 9:16', width: 1080, height: 1920 }, { label: 'Cinema · 21:9', width: 2560, height: 1080 }];
@@ -29,7 +30,7 @@ export class AppComponent implements OnDestroy {
   ];
   starSettings = { layerCount: 3, distribution: 'balanced', sensitivity: 3, backgroundMode: 'auto', warpStrength: 0.02, depthSmoothing: 18, absorptionStrength: 0.65, invertDepth: false, fineWarpRatio: 0.25, confidenceAmount: 0.7 };
   private readonly preferencesKey = 'astro-parallax.preferences.v1';
-  constructor() { this.restorePreferences(); }
+  constructor() { this.restorePreferences(); this.cameraMovements = this.cameraMovements.slice(0, this.maxCameraMovements); }
   ngOnDestroy(): void { this.stopLoadingProgress(); }
   modes: {value: ViewerMode; label: string}[] = [{value:'3d',label:'3D view'},{value:'original',label:'Original'},{value:'reconstructed',label:'Reconstructed'},{value:'difference',label:'Difference'},{value:'depth',label:'Depth map'},{value:'confidence',label:'Stability'}];
   get comparisonUrl(): string | null { if (!this.project || this.mode === '3d') return null; const nebula = this.group('nebula')[0]; if (this.mode === 'depth') return (nebula?.invert_depth ? nebula.inverted_depth_texture_url : nebula?.depth_texture_url) ?? null; if (this.mode === 'confidence') return nebula?.confidence_texture_url ?? null; return this.mode === 'original' ? this.project.comparison.originalUrl : this.mode === 'reconstructed' ? this.project.comparison.reconstructedUrl : this.project.comparison.differenceUrl; }
@@ -69,7 +70,7 @@ export class AppComponent implements OnDestroy {
   updatePathDuration(value: number): void { this.replaceActiveMovement({ duration: Math.max(5, Math.min(20, Number(value) || 7)) }); }
   updatePathEasing(value: CameraPathEasing): void { this.replaceActiveMovement({ easing: value }); }
   selectMovement(index: number): void { if (!this.cameraMovements[index]) return; this.activeMovementIndex = index; const pose = this.cameraMovements[index].path.start; if (pose) this.viewer?.goToPose(pose); }
-  addMovement(): void { const previous = this.cameraMovements.at(-1); const start = previous?.path.end ? { ...previous.path.end, position: [...previous.path.end.position] as [number, number, number], target: [...previous.path.end.target] as [number, number, number] } : undefined; this.cameraMovements = [...this.cameraMovements, { id: `movement-${Date.now()}`, path: { start }, duration: previous?.duration ?? 7, easing: previous?.easing ?? 'ease-in-out' }]; this.activeMovementIndex = this.cameraMovements.length - 1; if (start) { this.cameraRoll = start.roll ?? 0; this.viewer?.goToPose(start); } this.savePreferences(); }
+  addMovement(): void { if (this.cameraMovements.length >= this.maxCameraMovements) return; const previous = this.cameraMovements.at(-1); const start = previous?.path.end ? { ...previous.path.end, position: [...previous.path.end.position] as [number, number, number], target: [...previous.path.end.target] as [number, number, number] } : undefined; this.cameraMovements = [...this.cameraMovements, { id: `movement-${Date.now()}`, path: { start }, duration: previous?.duration ?? 7, easing: previous?.easing ?? 'ease-in-out' }]; this.activeMovementIndex = this.cameraMovements.length - 1; if (start) { this.cameraRoll = start.roll ?? 0; this.viewer?.goToPose(start); } this.savePreferences(); }
   removeActiveMovement(): void { if (this.cameraMovements.length === 1) return; this.cameraMovements = this.cameraMovements.filter((_, index) => index !== this.activeMovementIndex); this.activeMovementIndex = Math.min(this.activeMovementIndex, this.cameraMovements.length - 1); this.savePreferences(); }
   handlePlaybackState(playing: boolean): void { this.cameraPlayback = playing; }
   private replaceActiveMovement(changes: Partial<CameraMovement>): void { this.cameraMovements = this.cameraMovements.map((movement, index) => index === this.activeMovementIndex ? { ...movement, ...changes } : movement); this.savePreferences(); }
