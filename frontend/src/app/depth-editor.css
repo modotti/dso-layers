@@ -31,3 +31,5 @@
 .editor-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; margin-top: 12px; }
 .editor-actions button { padding: 6px 3px; font-size: 9px; }
 .depth-editor p { margin: 10px 0 0; color: #757f94; font-size: 9px; line-height: 1.4; }
+.controls .solo { border-color: #9986ff; color: #d9d1ff; background: #342b64; }
+.refinement p { color: #9990c4; }

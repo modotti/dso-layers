@@ -86,13 +86,13 @@ Angular standalone UI, FastAPI boundary, aligned-image validation, immutable sou
 
 `StarDetectionService` uses robust background/noise estimation, Gaussian-supported thresholding, and connected components. A replaceable `StarDepthAssignmentStrategy` ranks flux and apparent size. Nearest-component ownership keeps faint residual profiles in exactly one of three default layers, including connected overlaps, and numerical fixtures enforce conservation and determinism. Apparent distance remains explicitly artistic.
 
-### Phase 3 — nebula laboratory
+### Phase 3 — nebula laboratory (implemented)
 
 The current experiment replaces plane decomposition with a smooth artistic depth map derived from broad emission, absorption, and structural cues. A confidence map reduces motion around high-frequency and ambiguous features. In the viewer, a two-band shader moves a softly sampled broad component at full warp and a high-frequency residual at a configurable fraction. At the original camera position both bands recompose the source. Motion is intentionally constrained because the warp cannot synthesize genuinely hidden content.
 
-### Phase 4 — visual refinement
+### Phase 4 — visual refinement (implemented)
 
-Improve layer inspection, transparency/edge handling, camera constraints, difference visualization, automated parallax paths, preview downsampling, GPU limit reporting, and motion-oriented evaluation.
+Layer solo inspection, mirrored edge sampling for warp excursions, bounded orbit/pan, adjustable linear difference gain, horizontal/vertical/orbit preview paths, 2048-pixel GPU previews, WebGL texture-limit reporting, and depth-gradient/protected-area motion indicators. Full-resolution arrays remain the source of reconstruction metrics; only interactive media is downsampled.
 
 ## Future seams (not implementations)
 

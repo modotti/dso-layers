@@ -3,7 +3,7 @@ import { Component, ViewChild, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
 import { ApiService } from './api.service';
-import { DepthBrushSettings, DepthBrushTool, EditorHistoryState, ProjectResponse, SceneLayer, ViewerMode } from './models';
+import { DepthBrushSettings, DepthBrushTool, EditorHistoryState, GpuDiagnostics, ParallaxPath, ProjectResponse, SceneLayer, ViewerMode } from './models';
 import { ViewerComponent } from './viewer/viewer.component';
 
 @Component({ selector: 'aps-root', standalone: true, imports: [CommonModule, FormsModule, ViewerComponent], templateUrl: './app.component.html', styleUrls: ['./app.component.css', './phase2.css', './depth-editor.css'] })
@@ -14,6 +14,7 @@ export class AppComponent {
   editorOpen = false;
   brush: DepthBrushSettings = { tool: 'near', size: 80, strength: .25 };
   editorHistory: EditorHistoryState = { canUndo: false, canRedo: false, modified: false };
+  soloLayerId: string | null = null; differenceGain = 8; gpu: GpuDiagnostics | null = null;
   brushTools: { value: DepthBrushTool; label: string; hint: string }[] = [
     { value: 'near', label: 'Bring closer', hint: 'Lightens the active depth map' },
     { value: 'far', label: 'Push farther', hint: 'Darkens the active depth map' },
@@ -24,7 +25,7 @@ export class AppComponent {
   modes: {value: ViewerMode; label: string}[] = [{value:'3d',label:'3D view'},{value:'original',label:'Original'},{value:'reconstructed',label:'Reconstructed'},{value:'difference',label:'Difference'},{value:'depth',label:'Depth map'},{value:'confidence',label:'Stability'}];
   get comparisonUrl(): string | null { if (!this.project || this.mode === '3d') return null; const nebula = this.group('nebula')[0]; if (this.mode === 'depth') return (nebula?.invert_depth ? nebula.inverted_depth_texture_url : nebula?.depth_texture_url) ?? null; if (this.mode === 'confidence') return nebula?.confidence_texture_url ?? null; return this.mode === 'original' ? this.project.comparison.originalUrl : this.mode === 'reconstructed' ? this.project.comparison.reconstructedUrl : this.project.comparison.differenceUrl; }
   choose(event: Event, role: 'starless' | 'stars'): void { const file = (event.target as HTMLInputElement).files?.[0] ?? null; this[role] = file; this.error = ''; }
-  generate(): void { if (!this.starless || !this.stars || this.busy) return; this.busy = true; this.error = ''; this.api.createProject(this.starless, this.stars, this.starSettings).pipe(finalize(() => this.busy = false)).subscribe({ next: project => { this.project = project; this.mode = '3d'; }, error: (error: Error) => this.error = error.message }); }
+  generate(): void { if (!this.starless || !this.stars || this.busy) return; this.busy = true; this.error = ''; this.api.createProject(this.starless, this.stars, this.starSettings).pipe(finalize(() => this.busy = false)).subscribe({ next: project => { this.project = project; this.mode = '3d'; this.soloLayerId = null; }, error: (error: Error) => this.error = error.message }); }
   updateLayer(layer: SceneLayer): void { this.project = this.project ? {...this.project, scene: {...this.project.scene, layers: [...this.project.scene.layers]}} : null; }
   resetLayer(layer: SceneLayer): void { const stars = this.group('stars'); const starIndex = stars.findIndex(candidate => candidate.id === layer.id); const initialDepth = layer.type === 'nebula' ? -.35 : -.15 + starIndex * (.6 / Math.max(1, stars.length - 1)); Object.assign(layer, { visible: true, opacity: 1, depth: initialDepth, transform: { position: {x:0,y:0,z:0}, scale: {x:1,y:1,z:1} } }); this.updateLayer(layer); }
   group(type: 'nebula'|'stars'): SceneLayer[] { return this.project?.scene.layers.filter(layer => layer.type === type) ?? []; }
@@ -34,5 +35,7 @@ export class AppComponent {
   setEditor(open: boolean): void { this.editorOpen = open; if (open) this.mode = '3d'; }
   setBrushTool(tool: DepthBrushTool): void { this.brush = { ...this.brush, tool }; }
   updateBrush(parameter: 'size' | 'strength', value: number): void { this.brush = { ...this.brush, [parameter]: value }; }
+  toggleSolo(layer: SceneLayer): void { this.soloLayerId = this.soloLayerId === layer.id ? null : layer.id; }
+  preview(path: ParallaxPath): void { this.viewer?.startParallaxPreview(path); }
   trackLayer(_: number, layer: SceneLayer): string { return layer.id; }
 }

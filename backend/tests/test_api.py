@@ -20,7 +20,7 @@ def test_project_returns_versioned_scene_and_media():
     body = response.json()
     assert body["scene"]["schemaVersion"] == 1
     assert len(body["scene"]["layers"]) == 4
-    assert body["scene"]["processing"]["phase"] == 3
+    assert body["scene"]["processing"]["phase"] == 4
     nebula = next(layer for layer in body["scene"]["layers"] if layer["type"] == "nebula")
     assert nebula["depth_texture_url"].endswith("/nebula-depth.png")
     assert client.get(nebula["depth_texture_url"]).status_code == 200

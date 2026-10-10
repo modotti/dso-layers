@@ -8,7 +8,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
-from .imaging import ImageValidationError, depth_png_bytes, load_image, metrics, png_bytes, source_over, stars_to_straight_rgba, validate_pair
+from .imaging import ImageValidationError, depth_png_bytes, load_image, metrics, png_bytes, preview_size, resize_preview, source_over, stars_to_straight_rgba, validate_pair
 from .models import ComparisonUrls, ImageMetadata, MetricGroups, ProcessingMetadata, ProjectResponse, ReconstructionMetrics, SceneDocument, SceneLayer
 from .processing.stars import RankedVisualDepthStrategy, StarLayerGenerator
 from .processing.depth import create_artistic_depth_map
@@ -85,14 +85,20 @@ async def create_project(
     reference = base.rgb_linear.copy()
     for star_rgba in star_rgba_layers:
         reference = source_over(star_rgba, np.concatenate([reference, np.ones((*reference.shape[:2], 1), dtype=np.float32)], axis=2))[..., :3]
-    difference = np.clip(np.abs(reference - reconstructed) * 8, 0, 1)
+    difference = np.clip(np.abs(reference - reconstructed), 0, 1)
+
+    preview_width, preview_height = preview_size(base.width, base.height)
+    depth_gradient_y, depth_gradient_x = np.gradient(depth_result.depth_map)
+    motion_gradient = np.hypot(depth_gradient_x, depth_gradient_y)
+    motion_edge_risk = float(np.percentile(motion_gradient, 95))
+    protected_area = float(100 * np.mean(depth_result.confidence_map < 0.5))
 
     assets = {
-        "starless.png": png_bytes(base_rgba), "nebula-depth.png": depth_png_bytes(depth_result.depth_map), "nebula-depth-inverted.png": depth_png_bytes(1 - depth_result.depth_map), "nebula-confidence.png": depth_png_bytes(depth_result.confidence_map),
-        "original.png": png_bytes(reference), "reconstructed.png": png_bytes(reconstructed), "difference.png": png_bytes(difference),
+        "starless.png": png_bytes(resize_preview(base_rgba)), "nebula-depth.png": depth_png_bytes(resize_preview(depth_result.depth_map)), "nebula-depth-inverted.png": depth_png_bytes(resize_preview(1 - depth_result.depth_map)), "nebula-confidence.png": depth_png_bytes(resize_preview(depth_result.confidence_map)),
+        "original.png": png_bytes(resize_preview(reference)), "reconstructed.png": png_bytes(resize_preview(reconstructed)), "difference.png": png_bytes(resize_preview(difference)),
     }
     for index, star_rgba in enumerate(star_rgba_layers, start=1):
-        assets[f"stars-{index}.png"] = png_bytes(star_rgba)
+        assets[f"stars-{index}.png"] = png_bytes(resize_preview(star_rgba))
     for name, payload in assets.items():
         store.put_media(project_id, name, MediaAsset(payload))
     store.put_source(project_id, "starless", base.source_bytes)
@@ -104,7 +110,7 @@ async def create_project(
     layers.extend(SceneLayer(id=f"stars-{index + 1}", name=("Distant stars", "Mid-field stars", "Near stars")[index] if star_layer_count == 3 else f"Star depth {index + 1}", type="stars", texture_url=f"{prefix}/stars-{index + 1}.png", depth=-0.15 + index * depth_step, order=index + 1) for index in range(star_layer_count))
     scene = SceneDocument(
         name=(starless.filename or "Untitled scene").rsplit(".", 1)[0], source=source, layers=layers,
-        processing=ProcessingMetadata(parameters={"starLayerCount": star_layer_count, "starDistribution": star_distribution, "starSensitivity": star_sensitivity, "starBackgroundMode": star_background_mode, "backgroundLevel": star_result.background_level, "detectionThreshold": star_result.threshold, "nebulaWarpStrength": nebula_warp_strength, "nebulaFineWarpRatio": nebula_fine_warp_ratio, "nebulaConfidenceAmount": nebula_confidence_amount, **depth_result.parameters, "invert": nebula_depth_invert}, detectedStars=len(star_result.candidates)),
+        processing=ProcessingMetadata(parameters={"starLayerCount": star_layer_count, "starDistribution": star_distribution, "starSensitivity": star_sensitivity, "starBackgroundMode": star_background_mode, "backgroundLevel": star_result.background_level, "detectionThreshold": star_result.threshold, "nebulaWarpStrength": nebula_warp_strength, "nebulaFineWarpRatio": nebula_fine_warp_ratio, "nebulaConfidenceAmount": nebula_confidence_amount, "previewWidth": preview_width, "previewHeight": preview_height, "previewDownsampled": preview_width != base.width or preview_height != base.height, "motionEdgeRiskP95": motion_edge_risk, "protectedAreaPercent": protected_area, **depth_result.parameters, "invert": nebula_depth_invert}, detectedStars=len(star_result.candidates)),
     )
     star_metrics = ReconstructionMetrics.model_validate(metrics(reference_stars, reconstructed_stars))
     combined = ReconstructionMetrics.model_validate(metrics(reference, reconstructed))

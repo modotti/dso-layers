@@ -4,7 +4,7 @@ import numpy as np
 import tifffile
 from PIL import Image
 
-from app.imaging import load_image, metrics, png_bytes, source_over, stars_to_straight_rgba
+from app.imaging import load_image, metrics, png_bytes, resize_preview, source_over, stars_to_straight_rgba
 
 
 def test_stars_straight_alpha_reconstructs_signal_over_black():
@@ -38,3 +38,9 @@ def test_unprofiled_tiff_keeps_display_brightness_in_png_preview():
     preview = np.asarray(Image.open(BytesIO(png_bytes(loaded.rgb_linear))))
 
     np.testing.assert_allclose(preview, source, atol=1)
+
+
+def test_preview_is_bounded_without_changing_aspect_ratio():
+    image = np.zeros((2000, 4000, 3), dtype=np.float32)
+    preview = resize_preview(image)
+    assert preview.shape == (1024, 2048, 3)

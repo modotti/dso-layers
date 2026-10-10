@@ -10,6 +10,7 @@ from PIL import Image, UnidentifiedImageError
 
 SUPPORTED_SUFFIXES = {".png", ".tif", ".tiff"}
 MAX_PIXELS = 80_000_000
+MAX_PREVIEW_EDGE = 2048
 
 
 class ImageValidationError(ValueError):
@@ -141,3 +142,17 @@ def depth_png_bytes(depth: np.ndarray) -> bytes:
     output = BytesIO()
     Image.fromarray(np.round(np.clip(depth, 0, 1) * 255).astype(np.uint8), mode="L").save(output, format="PNG", optimize=True)
     return output.getvalue()
+
+
+def preview_size(width: int, height: int, max_edge: int = MAX_PREVIEW_EDGE) -> tuple[int, int]:
+    scale = min(1.0, max_edge / max(width, height))
+    return max(1, round(width * scale)), max(1, round(height * scale))
+
+
+def resize_preview(image: np.ndarray, max_edge: int = MAX_PREVIEW_EDGE) -> np.ndarray:
+    width, height = preview_size(image.shape[1], image.shape[0], max_edge)
+    if (width, height) == (image.shape[1], image.shape[0]):
+        return image
+    import cv2
+
+    return cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)

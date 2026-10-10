@@ -9,7 +9,7 @@ export interface SceneDocument {
   conventions: { coordinates: string; image_origin: 'top-left'; alpha: 'straight'; compositing: string; texture_color_space: 'srgb'; processing_color_space: 'linear-srgb' };
   camera: { position: [number, number, number]; target: [number, number, number]; fov: number; near: number; far: number; max_orbit_degrees: number; min_distance: number; max_distance: number };
   layers: SceneLayer[];
-  processing: { phase: 3; algorithm: string; deterministic: boolean; parameters: Record<string, string | number | boolean>; detectedStars: number };
+  processing: { phase: 4; algorithm: string; deterministic: boolean; parameters: Record<string, string | number | boolean>; detectedStars: number };
 }
 export interface ReconstructionMetrics { mae: number; rmse: number; maxError: number; pixelsOverTolerancePercent: number; tolerance: number }
 export interface ProjectResponse {
@@ -22,3 +22,5 @@ export type ViewerMode = '3d' | 'original' | 'reconstructed' | 'difference' | 'd
 export type DepthBrushTool = 'near' | 'far' | 'smooth' | 'protect';
 export interface DepthBrushSettings { tool: DepthBrushTool; size: number; strength: number }
 export interface EditorHistoryState { canUndo: boolean; canRedo: boolean; modified: boolean }
+export type ParallaxPath = 'horizontal' | 'vertical' | 'orbit';
+export interface GpuDiagnostics { maxTextureSize: number; renderer: string; previewWidth: number; previewHeight: number; sourceTooLarge: boolean }

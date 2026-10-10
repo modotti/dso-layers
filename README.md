@@ -45,9 +45,10 @@ cd frontend && npm run build
 1. Import aligned PNG or TIFF starless and stars files and configure the star/depth-warp settings.
 2. Confirm a dimension mismatch is rejected with an actionable error.
 3. Click **Build scene**, then switch between 3D, original, and difference views.
-4. Drag to orbit, right-drag to pan, scroll to zoom, and use the automated parallax preview.
+4. Drag to orbit, right-drag to pan, scroll to zoom, and compare the horizontal, vertical, and orbit preview paths.
 5. Change visibility, opacity, depth, position, scale, and global separation; confirm these updates do not reprocess the images.
 6. Reset a layer and return the camera to the photographic viewpoint.
+7. Solo individual layers, adjust difference gain, and review the motion/GPU diagnostics in the scene panel.
 
 Architecture, contracts, conventions, risks, and the phased plan are in [docs/architecture.md](docs/architecture.md).
 
@@ -56,7 +57,7 @@ Architecture, contracts, conventions, risks, and the phased plan are in [docs/ar
 - Starless is never split into repeated planes in this experiment; its warp is exactly zero at the canonical camera position.
 - The generated depth map is artistic and does not represent physical astronomical distance. A confidence map stabilizes ambiguous/high-frequency regions, while broad nebulosity and fine detail receive different motion strengths.
 - PNG color metadata is reported when available. TIFF ICC/profile interpretation is reported as unsupported rather than guessed.
-- Display previews are 8-bit sRGB PNGs. Original uploaded bytes and decoded high-bit-depth arrays remain on the backend for the process lifetime.
+- Display previews are bounded 8-bit sRGB PNGs (2048 px maximum edge). Original uploaded bytes and decoded high-bit-depth arrays remain on the backend for the process lifetime, and full-resolution arrays drive metrics.
 - Projects are memory-backed and disappear when FastAPI restarts.
 - Reconstruction is evaluated in linear-light float values using the same ordered source-over operation used by the viewer.
 - Occlusion revealed by camera motion cannot be filled in Phase 1.

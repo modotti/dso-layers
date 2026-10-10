@@ -66,8 +66,8 @@ class SceneLayer(BaseModel):
 
 
 class ProcessingMetadata(BaseModel):
-    phase: Literal[3] = 3
-    algorithm: str = "depth-warp-v1+star-visual-heuristics-v1"
+    phase: Literal[4] = 4
+    algorithm: str = "depth-warp-v2+star-visual-heuristics-v1"
     deterministic: bool = True
     parameters: dict[str, str | int | float | bool] = Field(default_factory=dict)
     detected_stars: int = Field(0, alias="detectedStars")

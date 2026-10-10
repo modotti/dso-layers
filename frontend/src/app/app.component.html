@@ -10,11 +10,11 @@
 <main [class.empty]="!project">
   <section class="workspace">
     <div class="viewport">
-      <aps-viewer [scene]="project?.scene || null" [mode]="mode" [comparisonUrl]="comparisonUrl" [separation]="separation" [editorEnabled]="editorOpen" [brush]="brush" (historyChange)="editorHistory=$event"></aps-viewer>
+      <aps-viewer [scene]="project?.scene || null" [mode]="mode" [comparisonUrl]="comparisonUrl" [separation]="separation" [soloLayerId]="soloLayerId" [differenceGain]="differenceGain" [editorEnabled]="editorOpen" [brush]="brush" (historyChange)="editorHistory=$event" (diagnostics)="gpu=$event"></aps-viewer>
       <div class="empty-state" *ngIf="!project && !busy"><span>✧</span><h1>Reveal the space inside your image</h1><p>Import a matched starless and stars pair to build an aligned two-plane scene.</p></div>
       <div class="processing" *ngIf="busy"><i></i><strong>Decomposing the star field</strong><span>Detecting profiles, assigning depth, and validating reconstruction…</span></div>
       <div class="view-tabs" *ngIf="project"><button *ngFor="let item of modes" [class.active]="mode===item.value" (click)="mode=item.value">{{ item.label }}</button></div>
-      <div class="camera-tools" *ngIf="project"><button (click)="viewer?.resetCamera()">Reset camera</button><button (click)="viewer?.startParallaxPreview()">▶ Parallax test</button><button [class.active]="editorOpen" (click)="setEditor(!editorOpen)">✎ Edit depth</button></div>
+      <div class="camera-tools" *ngIf="project"><button (click)="viewer?.resetCamera()">Reset camera</button><button (click)="preview('horizontal')">↔ Path</button><button (click)="preview('vertical')">↕ Path</button><button (click)="preview('orbit')">◌ Orbit</button><button [class.active]="editorOpen" (click)="setEditor(!editorOpen)">✎ Edit depth</button></div>
       <section class="depth-editor" *ngIf="project && editorOpen">
         <header><div><small>LOCAL DEPTH EDITOR</small><strong>Paint the nebula response</strong></div><button title="Close editor" (click)="setEditor(false)">×</button></header>
         <div class="tool-grid"><button *ngFor="let tool of brushTools" [class.active]="brush.tool===tool.value" [title]="tool.hint" (click)="setBrushTool(tool.value)">{{ tool.label }}</button></div>
@@ -33,12 +33,13 @@
       <section class="global"><label><span>Fine detail motion <b>{{ (group('nebula')[0].fine_warp_ratio || 0) | number:'1.2-2' }}</b></span><input type="range" min="0" max="1" step="0.05" [ngModel]="group('nebula')[0].fine_warp_ratio" (ngModelChange)="updateNebulaParameter('fine_warp_ratio',$event)"></label></section>
       <section class="global"><label><span>Stability mask <b>{{ (group('nebula')[0].confidence_amount || 0) | number:'1.2-2' }}</b></span><input type="range" min="0" max="1" step="0.05" [ngModel]="group('nebula')[0].confidence_amount" (ngModelChange)="updateNebulaParameter('confidence_amount',$event)"></label></section>
       <section class="global"><label class="live-toggle"><span>Invert depth map</span><input type="checkbox" [ngModel]="group('nebula')[0].invert_depth" (ngModelChange)="toggleDepth($event)"></label></section>
+      <section class="global" *ngIf="mode==='difference'"><label><span>Difference gain <b>{{ differenceGain | number:'1.0-0' }}×</b></span><input type="range" min="1" max="32" step="1" [(ngModel)]="differenceGain"></label></section>
       <ng-container *ngFor="let type of ['nebula','stars']">
         <section class="layer-group">
           <h3>{{ type === 'nebula' ? 'Nebula layers' : 'Star layers' }} <span>{{ group($any(type)).length }}</span></h3>
           <details *ngFor="let layer of group($any(type)); trackBy: trackLayer" open>
             <summary><input type="checkbox" [(ngModel)]="layer.visible" (change)="updateLayer(layer)" (click)="$event.stopPropagation()"><span class="swatch" [class.stars]="layer.type==='stars'"></span><strong>{{ layer.name }}</strong><small>z {{ layer.depth | number:'1.2-2' }}</small></summary>
-            <div class="controls">
+            <div class="controls"><button class="reset" [class.solo]="soloLayerId===layer.id" (click)="toggleSolo(layer)">{{ soloLayerId===layer.id ? 'Show all layers' : 'Inspect layer only' }}</button>
               <label><span>Opacity <b>{{ layer.opacity | percent }}</b></span><input type="range" min="0" max="1" step="0.01" [(ngModel)]="layer.opacity" (input)="updateLayer(layer)"></label>
               <label><span>Depth <b>{{ layer.depth | number:'1.2-2' }}</b></span><input type="range" min="-1" max="1" step="0.01" [(ngModel)]="layer.depth" (input)="updateLayer(layer)"></label>
               <div class="inline"><label>X<input type="number" step="0.01" [(ngModel)]="layer.transform.position.x" (input)="updateLayer(layer)"></label><label>Y<input type="number" step="0.01" [(ngModel)]="layer.transform.position.y" (input)="updateLayer(layer)"></label><label>Scale<input type="number" min="0.1" step="0.05" [(ngModel)]="layer.transform.scale.x" (ngModelChange)="layer.transform.scale.y=$event; updateLayer(layer)"></label></div>
@@ -47,6 +48,7 @@
           </details>
         </section>
       </ng-container>
+      <section class="metrics refinement"><h3>Motion evaluation</h3><div><span>Edge risk P95 <b>{{ +project.scene.processing.parameters['motionEdgeRiskP95'] | number:'1.3-3' }}</b></span><span>Protected area <b>{{ +project.scene.processing.parameters['protectedAreaPercent'] | number:'1.1-1' }}%</b></span></div><h3>GPU preview</h3><div *ngIf="gpu"><span>Texture limit <b>{{ gpu.maxTextureSize }} px</b></span><span>Preview <b>{{ gpu.previewWidth }} × {{ gpu.previewHeight }}</b></span></div><p *ngIf="project.scene.processing.parameters['previewDownsampled']">Full-resolution processing retained; interactive textures were downsampled for stable GPU playback.</p><p *ngIf="gpu?.sourceTooLarge">The source exceeds this GPU's native texture limit; the bounded preview is active.</p></section>
       <section class="metrics"><h3>Combined reconstruction</h3><div><span>MAE <b>{{ project.metrics.combined.mae | number:'1.5-5' }}</b></span><span>RMSE <b>{{ project.metrics.combined.rmse | number:'1.5-5' }}</b></span><span>Max error <b>{{ project.metrics.combined.maxError | number:'1.5-5' }}</b></span><span>Over tolerance <b>{{ project.metrics.combined.pixelsOverTolerancePercent | number:'1.2-2' }}%</b></span></div><h3 *ngIf="project.metrics.stars">Star conservation</h3><div *ngIf="project.metrics.stars as metric"><span>MAE <b>{{ metric.mae | number:'1.6-6' }}</b></span><span>RMSE <b>{{ metric.rmse | number:'1.6-6' }}</b></span></div><p *ngFor="let warning of project.warnings">{{ warning }}</p></section>
     </aside>
   </section>
