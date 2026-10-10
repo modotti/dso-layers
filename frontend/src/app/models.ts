@@ -19,3 +19,6 @@ export interface ProjectResponse {
   warnings: string[];
 }
 export type ViewerMode = '3d' | 'original' | 'reconstructed' | 'difference' | 'depth' | 'confidence';
+export type DepthBrushTool = 'near' | 'far' | 'smooth' | 'protect';
+export interface DepthBrushSettings { tool: DepthBrushTool; size: number; strength: number }
+export interface EditorHistoryState { canUndo: boolean; canRedo: boolean; modified: boolean }

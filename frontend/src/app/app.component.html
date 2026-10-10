@@ -10,11 +10,19 @@
 <main [class.empty]="!project">
   <section class="workspace">
     <div class="viewport">
-      <aps-viewer [scene]="project?.scene || null" [mode]="mode" [comparisonUrl]="comparisonUrl" [separation]="separation"></aps-viewer>
+      <aps-viewer [scene]="project?.scene || null" [mode]="mode" [comparisonUrl]="comparisonUrl" [separation]="separation" [editorEnabled]="editorOpen" [brush]="brush" (historyChange)="editorHistory=$event"></aps-viewer>
       <div class="empty-state" *ngIf="!project && !busy"><span>✧</span><h1>Reveal the space inside your image</h1><p>Import a matched starless and stars pair to build an aligned two-plane scene.</p></div>
       <div class="processing" *ngIf="busy"><i></i><strong>Decomposing the star field</strong><span>Detecting profiles, assigning depth, and validating reconstruction…</span></div>
       <div class="view-tabs" *ngIf="project"><button *ngFor="let item of modes" [class.active]="mode===item.value" (click)="mode=item.value">{{ item.label }}</button></div>
-      <div class="camera-tools" *ngIf="project"><button (click)="viewer?.resetCamera()">Reset camera</button><button (click)="viewer?.startParallaxPreview()">▶ Parallax test</button></div>
+      <div class="camera-tools" *ngIf="project"><button (click)="viewer?.resetCamera()">Reset camera</button><button (click)="viewer?.startParallaxPreview()">▶ Parallax test</button><button [class.active]="editorOpen" (click)="setEditor(!editorOpen)">✎ Edit depth</button></div>
+      <section class="depth-editor" *ngIf="project && editorOpen">
+        <header><div><small>LOCAL DEPTH EDITOR</small><strong>Paint the nebula response</strong></div><button title="Close editor" (click)="setEditor(false)">×</button></header>
+        <div class="tool-grid"><button *ngFor="let tool of brushTools" [class.active]="brush.tool===tool.value" [title]="tool.hint" (click)="setBrushTool(tool.value)">{{ tool.label }}</button></div>
+        <label><span>Brush size <b>{{ brush.size | number:'1.0-0' }} px</b></span><input type="range" min="12" max="240" step="4" [ngModel]="brush.size" (ngModelChange)="updateBrush('size',$event)"></label>
+        <label><span>Intensity <b>{{ brush.strength | percent }}</b></span><input type="range" min="0.05" max="1" step="0.05" [ngModel]="brush.strength" (ngModelChange)="updateBrush('strength',$event)"></label>
+        <div class="editor-actions"><button [disabled]="!editorHistory.canUndo" (click)="viewer?.undoEdit()">↶ Undo</button><button [disabled]="!editorHistory.canRedo" (click)="viewer?.redoEdit()">↷ Redo</button><button [disabled]="!editorHistory.modified" (click)="viewer?.resetEdits()">Restore</button></div>
+        <p>Drag over the image. Camera orbit is paused while editing; close the editor to test movement.</p>
+      </section>
       <div class="error" *ngIf="error">{{ error }}</div>
     </div>
     <aside class="panel" *ngIf="project">
