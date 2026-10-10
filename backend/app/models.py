@@ -53,6 +53,7 @@ class SceneLayer(BaseModel):
     texture_url: str
     depth_texture_url: str | None = None
     warp_strength: float = 0.0
+    invert_depth: bool = False
     depth: float
     order: int
     visible: bool = True

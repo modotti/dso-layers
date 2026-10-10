@@ -34,3 +34,4 @@
 }
 .processing-settings input[type='range'] { display: block; margin-top: 8px; }
 .processing-settings label b { float: right; }
+.live-toggle { display: flex; align-items: center; justify-content: space-between; }

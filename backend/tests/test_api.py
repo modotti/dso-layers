@@ -56,4 +56,5 @@ def test_depth_warp_parameters_are_exposed_in_scene():
     body = response.json()
     nebula = next(layer for layer in body["scene"]["layers"] if layer["type"] == "nebula")
     assert nebula["warp_strength"] == 0.08
+    assert nebula["invert_depth"] is True
     assert body["scene"]["processing"]["parameters"]["invert"] is True

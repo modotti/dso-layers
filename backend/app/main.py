@@ -61,7 +61,7 @@ async def create_project(
     base, stellar = load_image(starless.filename or "starless", starless_payload), load_image(stars.filename or "stars", stars_payload)
     validate_pair(base, stellar)
     project_id = str(uuid4())
-    depth_result = create_artistic_depth_map(base.rgb_linear, smoothing=nebula_depth_smoothing, absorption_strength=nebula_absorption_strength, invert=nebula_depth_invert)
+    depth_result = create_artistic_depth_map(base.rgb_linear, smoothing=nebula_depth_smoothing, absorption_strength=nebula_absorption_strength, invert=False)
     star_result = StarLayerGenerator().process(
         stellar.rgb_linear,
         layer_count=star_layer_count,
@@ -98,11 +98,11 @@ async def create_project(
     prefix = f"/media/{project_id}"
     source = ImageMetadata(width=base.width, height=base.height, channels=3, bit_depth=max(base.bit_depth, stellar.bit_depth), format=f"{base.format}+{stellar.format}", transfer=base.transfer, embedded_profile=base.embedded_profile or stellar.embedded_profile)
     depth_step = 0.6 / max(1, star_layer_count - 1)
-    layers = [SceneLayer(id="nebula-input", name="Warped starless", type="nebula", texture_url=f"{prefix}/starless.png", depth_texture_url=f"{prefix}/nebula-depth.png", warp_strength=nebula_warp_strength, depth=-0.35, order=0)]
+    layers = [SceneLayer(id="nebula-input", name="Warped starless", type="nebula", texture_url=f"{prefix}/starless.png", depth_texture_url=f"{prefix}/nebula-depth.png", warp_strength=nebula_warp_strength, invert_depth=nebula_depth_invert, depth=-0.35, order=0)]
     layers.extend(SceneLayer(id=f"stars-{index + 1}", name=("Distant stars", "Mid-field stars", "Near stars")[index] if star_layer_count == 3 else f"Star depth {index + 1}", type="stars", texture_url=f"{prefix}/stars-{index + 1}.png", depth=-0.15 + index * depth_step, order=index + 1) for index in range(star_layer_count))
     scene = SceneDocument(
         name=(starless.filename or "Untitled scene").rsplit(".", 1)[0], source=source, layers=layers,
-        processing=ProcessingMetadata(parameters={"starLayerCount": star_layer_count, "starDistribution": star_distribution, "starSensitivity": star_sensitivity, "starBackgroundMode": star_background_mode, "backgroundLevel": star_result.background_level, "detectionThreshold": star_result.threshold, "nebulaWarpStrength": nebula_warp_strength, **depth_result.parameters}, detectedStars=len(star_result.candidates)),
+        processing=ProcessingMetadata(parameters={"starLayerCount": star_layer_count, "starDistribution": star_distribution, "starSensitivity": star_sensitivity, "starBackgroundMode": star_background_mode, "backgroundLevel": star_result.background_level, "detectionThreshold": star_result.threshold, "nebulaWarpStrength": nebula_warp_strength, **depth_result.parameters, "invert": nebula_depth_invert}, detectedStars=len(star_result.candidates)),
     )
     star_metrics = ReconstructionMetrics.model_validate(metrics(reference_stars, reconstructed_stars))
     combined = ReconstructionMetrics.model_validate(metrics(reference, reconstructed))

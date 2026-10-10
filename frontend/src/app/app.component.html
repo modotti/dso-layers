@@ -22,6 +22,7 @@
       <section class="detection"><strong>{{ project.scene.processing.detectedStars }}</strong><span>stellar regions detected</span><small>Visual depth heuristic — not astronomical distance</small></section>
       <section class="global"><label><span>Global separation <b>{{ separation | number:'1.1-1' }}×</b></span><input type="range" min="0" max="3" step="0.1" [(ngModel)]="separation"></label></section>
       <section class="global"><label><span>Nebula warp <b>{{ (group('nebula')[0].warp_strength || 0) | number:'1.2-2' }}</b></span><input type="range" min="0" max="0.10" step="0.005" [ngModel]="group('nebula')[0].warp_strength" (ngModelChange)="updateWarp($event)"></label></section>
+      <section class="global"><label class="live-toggle"><span>Invert depth map</span><input type="checkbox" [(ngModel)]="group('nebula')[0].invert_depth" (change)="updateLayer(group('nebula')[0])"></label></section>
       <ng-container *ngFor="let type of ['nebula','stars']">
         <section class="layer-group">
           <h3>{{ type === 'nebula' ? 'Nebula layers' : 'Star layers' }} <span>{{ group($any(type)).length }}</span></h3>

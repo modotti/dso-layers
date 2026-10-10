@@ -1,7 +1,7 @@
 export interface Vector3 { x: number; y: number; z: number }
 export interface LayerTransform { position: Vector3; scale: Vector3 }
 export type LayerType = 'nebula' | 'stars';
-export interface SceneLayer { id: string; name: string; type: LayerType; texture_url: string; depth_texture_url?: string | null; warp_strength?: number; depth: number; order: number; visible: boolean; opacity: number; transform: LayerTransform }
+export interface SceneLayer { id: string; name: string; type: LayerType; texture_url: string; depth_texture_url?: string | null; warp_strength?: number; invert_depth?: boolean; depth: number; order: number; visible: boolean; opacity: number; transform: LayerTransform }
 export interface SceneDocument {
   schemaVersion: 1;
   name: string;
