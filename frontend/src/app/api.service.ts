@@ -27,4 +27,9 @@ export class ApiService {
   }
 
   deleteProject(projectId: string): void { this.http.delete(`/api/v1/projects/${projectId}`).subscribe(); }
+
+  convertVideo(video: Blob): Observable<Blob> {
+    const form = new FormData(); form.append('video', video, 'camera-path.webm');
+    return this.http.post('/api/v1/videos/convert', form, { responseType: 'blob' }).pipe(catchError(() => throwError(() => new Error('MP4 conversion failed. Confirm that FFmpeg is installed on the backend.'))));
+  }
 }

@@ -28,3 +28,5 @@ export interface GpuDiagnostics { maxTextureSize: number; renderer: string; prev
 export interface CameraPathPose { position: [number, number, number]; target: [number, number, number] }
 export interface CameraPathState { start?: CameraPathPose; end?: CameraPathPose }
 export type CameraPathEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out';
+export interface VideoExportSettings { width: number; height: number; fps: number }
+export interface VideoExportState { exporting: boolean; error?: string }

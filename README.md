@@ -7,6 +7,7 @@ Experimental web-first MVP for validating 2.5D parallax from aligned astrophotog
 - macOS on Apple Silicon (the code is platform-independent)
 - Node.js 20 or newer
 - Python 3.11 or newer
+- FFmpeg with `libx264` support for MP4 video export
 
 ## Start locally
 
@@ -29,6 +30,8 @@ npm start
 ```
 
 Open <http://localhost:4200>. The development frontend proxies `/api` and `/media` to FastAPI.
+
+On macOS, FFmpeg can be installed with `brew install ffmpeg`.
 
 You can also run both services with `./scripts/dev.sh`; it expects the backend virtual environment at `backend/.venv`.
 

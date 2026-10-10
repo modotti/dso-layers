@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
 from time import perf_counter
 from uuid import uuid4
 
 import numpy as np
-from fastapi import FastAPI, File, Form, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
@@ -17,6 +22,7 @@ from .processing.depth import create_artistic_depth_map
 from .store import MediaAsset, MemoryProjectStore
 
 MAX_UPLOAD_BYTES = 256 * 1024 * 1024
+MAX_VIDEO_UPLOAD_BYTES = 512 * 1024 * 1024
 logger = logging.getLogger("uvicorn.error").getChild("processing")
 store = MemoryProjectStore()
 app = FastAPI(title="Astro Parallax Studio API", version="1.0.0")
@@ -45,6 +51,32 @@ async def _read_upload(upload: UploadFile) -> bytes:
     if not payload:
         raise ImageValidationError("empty_file", "Uploaded images cannot be empty.")
     return payload
+
+
+@app.post("/api/v1/videos/convert")
+async def convert_video(video: UploadFile = File(...)) -> Response:
+    if shutil.which("ffmpeg") is None:
+        raise HTTPException(status_code=503, detail="FFmpeg is not installed on the backend.")
+    payload = await video.read(MAX_VIDEO_UPLOAD_BYTES + 1)
+    if not payload:
+        raise HTTPException(status_code=422, detail="The recorded video is empty.")
+    if len(payload) > MAX_VIDEO_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="The recorded video exceeds the 512 MB conversion limit.")
+    conversion_id = str(uuid4())
+    started_at = perf_counter()
+    logger.info("[%s] MP4 conversion started input_bytes=%d", conversion_id, len(payload))
+    with tempfile.TemporaryDirectory(prefix="astro-parallax-video-") as directory:
+        input_path = Path(directory) / "input.webm"
+        output_path = Path(directory) / "output.mp4"
+        input_path.write_bytes(payload)
+        command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(input_path), "-an", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(output_path)]
+        result = await asyncio.to_thread(subprocess.run, command, capture_output=True, text=True, timeout=300, check=False)
+        if result.returncode != 0 or not output_path.exists():
+            logger.error("[%s] MP4 conversion failed code=%d error=%s", conversion_id, result.returncode, result.stderr[-1000:])
+            raise HTTPException(status_code=422, detail="FFmpeg could not convert the recorded video.")
+        converted = output_path.read_bytes()
+    logger.info("[%s] MP4 conversion complete output_bytes=%d total=%.2fs", conversion_id, len(converted), perf_counter() - started_at)
+    return Response(converted, media_type="video/mp4", headers={"Content-Disposition": 'attachment; filename="camera-path.mp4"'})
 
 
 @app.post("/api/v1/projects", response_model=ProjectResponse, response_model_by_alias=True)
