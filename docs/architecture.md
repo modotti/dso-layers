@@ -92,7 +92,7 @@ The current experiment replaces plane decomposition with a smooth artistic depth
 
 ### Phase 4 — visual refinement (implemented)
 
-Layer solo inspection, mirrored edge sampling for warp excursions, full-orbit navigation with a broad zoom range, subtle depth-gradient lighting, adjustable linear difference gain, horizontal/vertical/orbit preview paths, cinematic camera paths with configurable duration, easing, and per-keyframe camera roll, configurable-viewport WebM capture followed by backend FFmpeg H.264/MP4 conversion, 2048-pixel GPU previews, WebGL texture-limit reporting, and depth-gradient/protected-area motion indicators. Full-resolution arrays remain the source of reconstruction metrics; only interactive media is downsampled.
+Layer solo inspection, mirrored edge sampling for warp excursions, full-orbit navigation with a broad zoom range, subtle depth-gradient lighting, adjustable linear difference gain, horizontal/vertical/orbit preview paths, sequenced cinematic camera movements with per-block endpoints, duration, easing, and camera roll, distraction-free playback, configurable-viewport WebM capture of the complete sequence followed by backend FFmpeg H.264/MP4 conversion, 2048-pixel GPU previews, WebGL texture-limit reporting, and depth-gradient/protected-area motion indicators. Full-resolution arrays remain the source of reconstruction metrics; only interactive media is downsampled.
 
 ## Future seams (not implementations)
 

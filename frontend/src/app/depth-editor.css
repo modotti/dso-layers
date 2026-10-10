@@ -33,18 +33,24 @@
 .depth-editor p { margin: 10px 0 0; color: #757f94; font-size: 9px; line-height: 1.4; }
 .controls .solo { border-color: #9986ff; color: #d9d1ff; background: #342b64; }
 .refinement p { color: #9990c4; }
-.camera-keyframes { position: absolute; z-index: 4; left: 16px; bottom: 62px; width: 330px; box-sizing: border-box; padding: 9px 10px; border: 1px solid #343b50; border-radius: 9px; background: #0b0f18e8; }
+.camera-keyframes { position: absolute; z-index: 4; left: 16px; bottom: 62px; width: 370px; box-sizing: border-box; padding: 9px 10px; border: 1px solid #343b50; border-radius: 9px; background: #0b0f18e8; }
 .camera-keyframes > div { display: grid; grid-template-columns: 1fr 1fr 1.15fr; gap: 6px; }
 .camera-keyframes button { padding: 7px 5px; font-size: 10px; }
 .camera-keyframes .mark-start { color: #77e5ba; border-color: #286c58; }
 .camera-keyframes .mark-end { color: #ffb58f; border-color: #874d35; }
 .camera-keyframes .play-path { color: #d5caff; border-color: #6555bd; background: #29204f; }
 .camera-keyframes button.saved { box-shadow: inset 0 0 0 1px currentColor, 0 0 10px #7966df44; }
-.camera-keyframes .jump-buttons { grid-template-columns: 1fr 1fr; margin-top: 6px; }
+.camera-keyframes .movement-tabs { display: flex; gap: 5px; margin-bottom: 7px; overflow-x: auto; }
+.camera-keyframes .movement-tabs button { flex: 0 0 auto; min-width: 62px; color: #929cb0; }
+.camera-keyframes .movement-tabs button.active { border-color: #8d7bed; color: #e0d9ff; background: #342b64; }
+.camera-keyframes .movement-tabs .add-movement { min-width: 32px; color: #91dfc0; }
+.camera-keyframes .jump-buttons { grid-template-columns: 1fr 1fr .7fr; margin-top: 6px; }
 .camera-keyframes .jump-buttons button:first-child { color: #9deace; border-color: #286c58; }
-.camera-keyframes .jump-buttons button:last-child { color: #ffc7aa; border-color: #874d35; }
+.camera-keyframes .jump-buttons button:nth-child(2) { color: #ffc7aa; border-color: #874d35; }
+.camera-keyframes .jump-buttons .remove-movement { color: #d88b9f; border-color: #663747; }
 .camera-keyframes label { display: flex; align-items: center; gap: 9px; margin-top: 8px; color: #949daf; font-size: 10px; }
 .camera-keyframes label span { min-width: 76px; display: flex; justify-content: space-between; }
 .camera-keyframes label input { margin: 0; }
 .camera-keyframes label select { flex: 1; min-width: 0; padding: 5px 7px; border: 1px solid #303748; border-radius: 5px; color: #dce3f2; background: #111620; }
 .depth-editor { bottom: 182px; }
+.viewport.playback > :not(aps-viewer) { display: none !important; }

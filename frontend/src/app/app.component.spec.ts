@@ -29,4 +29,17 @@ describe('AppComponent', () => {
     expect(restored.videoExport.width).toBe(2560);
     expect(restored.videoExport.fps).toBe(60);
   });
+  it('chains a new camera movement from the previous endpoint', () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    const end = { position: [1, 2, 3] as [number, number, number], target: [0, 0, 0] as [number, number, number], roll: 24 };
+    component.updateCameraPath({ start: { position: [0, 0, 5], target: [0, 0, 0], roll: 0 }, end });
+    component.updatePathDuration(12);
+    component.updatePathEasing('ease-out');
+    component.addMovement();
+    expect(component.cameraMovements.length).toBe(2);
+    expect(component.cameraPath.start).toEqual(end);
+    expect(component.cameraPath.end).toBeUndefined();
+    expect(component.cameraPathDuration).toBe(12);
+    expect(component.cameraPathEasing).toBe('ease-out');
+  });
 });
