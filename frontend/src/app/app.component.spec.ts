@@ -47,4 +47,15 @@ describe('AppComponent', () => {
     for (let index = 0; index < 8; index++) component.addMovement();
     expect(component.cameraMovements.length).toBe(5);
   });
+  it('links the active movement start to the previous endpoint', () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    const previousEnd = { position: [2, 1, 4] as [number, number, number], target: [0, 1, 0] as [number, number, number], roll: -16 };
+    component.updateCameraPath({ start: { position: [0, 0, 5], target: [0, 0, 0] }, end: previousEnd });
+    component.addMovement();
+    component.updateCameraPath({ ...component.cameraPath, start: { position: [9, 9, 9], target: [1, 1, 1], roll: 30 } });
+    component.linkActiveMovementToPrevious();
+    expect(component.cameraPath.start).toEqual(previousEnd);
+    expect(component.cameraPath.start).not.toBe(previousEnd);
+    expect(component.cameraRoll).toBe(-16);
+  });
 });

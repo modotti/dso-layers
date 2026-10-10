@@ -44,6 +44,7 @@
 .camera-keyframes .movement-tabs button { flex: 0 0 auto; min-width: 62px; color: #929cb0; }
 .camera-keyframes .movement-tabs button.active { border-color: #8d7bed; color: #e0d9ff; background: #342b64; }
 .camera-keyframes .movement-tabs .add-movement { min-width: 32px; color: #91dfc0; }
+.camera-keyframes .link-movement { width: 100%; margin-bottom: 7px; border-color: #456a79; color: #9ed8e8; background: #10202a; }
 .camera-keyframes .jump-buttons { grid-template-columns: 1fr 1fr .7fr; margin-top: 6px; }
 .camera-keyframes .jump-buttons button:first-child { color: #9deace; border-color: #286c58; }
 .camera-keyframes .jump-buttons button:nth-child(2) { color: #ffc7aa; border-color: #874d35; }
