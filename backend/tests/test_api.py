@@ -50,10 +50,10 @@ def test_depth_warp_parameters_are_exposed_in_scene():
     response = client.post(
         "/api/v1/projects",
         files={"starless": ("base.png", png(16, 12, (30, 12, 20)), "image/png"), "stars": ("stars.png", png(16, 12, (0, 0, 0)), "image/png")},
-        data={"nebula_warp_strength": "0.2", "nebula_depth_smoothing": "24", "nebula_absorption_strength": "0.8", "nebula_depth_invert": "true"},
+        data={"nebula_warp_strength": "0.08", "nebula_depth_smoothing": "24", "nebula_absorption_strength": "0.8", "nebula_depth_invert": "true"},
     )
     assert response.status_code == 200
     body = response.json()
     nebula = next(layer for layer in body["scene"]["layers"] if layer["type"] == "nebula")
-    assert nebula["warp_strength"] == 0.2
+    assert nebula["warp_strength"] == 0.08
     assert body["scene"]["processing"]["parameters"]["invert"] is True

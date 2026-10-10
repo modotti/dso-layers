@@ -11,7 +11,7 @@ export class AppComponent {
   @ViewChild(ViewerComponent) viewer?: ViewerComponent;
   private readonly api = inject(ApiService);
   starless: File | null = null; stars: File | null = null; project: ProjectResponse | null = null; busy = false; error = ''; mode: ViewerMode = '3d'; separation = 1;
-  starSettings = { layerCount: 3, distribution: 'balanced', sensitivity: 3, backgroundMode: 'auto', warpStrength: 0.12, depthSmoothing: 18, absorptionStrength: 0.65, invertDepth: false };
+  starSettings = { layerCount: 3, distribution: 'balanced', sensitivity: 3, backgroundMode: 'auto', warpStrength: 0.06, depthSmoothing: 18, absorptionStrength: 0.65, invertDepth: false };
   modes: {value: ViewerMode; label: string}[] = [{value:'3d',label:'3D view'},{value:'original',label:'Original'},{value:'reconstructed',label:'Reconstructed'},{value:'difference',label:'Difference'},{value:'depth',label:'Depth map'}];
   get comparisonUrl(): string | null { if (!this.project || this.mode === '3d') return null; if (this.mode === 'depth') return this.group('nebula')[0]?.depth_texture_url ?? null; return this.mode === 'original' ? this.project.comparison.originalUrl : this.mode === 'reconstructed' ? this.project.comparison.reconstructedUrl : this.project.comparison.differenceUrl; }
   choose(event: Event, role: 'starless' | 'stars'): void { const file = (event.target as HTMLInputElement).files?.[0] ?? null; this[role] = file; this.error = ''; }
