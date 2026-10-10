@@ -54,7 +54,7 @@ Architecture, contracts, conventions, risks, and the phased plan are in [docs/ar
 ## Current limits
 
 - Starless is never split into repeated planes in this experiment; its warp is exactly zero at the canonical camera position.
-- The generated depth map is artistic and does not represent physical astronomical distance.
+- The generated depth map is artistic and does not represent physical astronomical distance. A confidence map stabilizes ambiguous/high-frequency regions, while broad nebulosity and fine detail receive different motion strengths.
 - PNG color metadata is reported when available. TIFF ICC/profile interpretation is reported as unsupported rather than guessed.
 - Display previews are 8-bit sRGB PNGs. Original uploaded bytes and decoded high-bit-depth arrays remain on the backend for the process lifetime.
 - Projects are memory-backed and disappear when FastAPI restarts.

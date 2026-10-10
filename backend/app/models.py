@@ -53,7 +53,10 @@ class SceneLayer(BaseModel):
     texture_url: str
     depth_texture_url: str | None = None
     inverted_depth_texture_url: str | None = None
+    confidence_texture_url: str | None = None
     warp_strength: float = 0.0
+    fine_warp_ratio: float = 0.25
+    confidence_amount: float = 0.7
     invert_depth: bool = False
     depth: float
     order: int

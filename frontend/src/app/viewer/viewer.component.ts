@@ -46,7 +46,10 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
         const depthTexture = await loader.loadAsync(layer.depth_texture_url); depthTexture.colorSpace = THREE.NoColorSpace; depthTexture.flipY = true;
         const invertedDepthTexture = layer.inverted_depth_texture_url ? await loader.loadAsync(layer.inverted_depth_texture_url) : depthTexture;
         invertedDepthTexture.colorSpace = THREE.NoColorSpace; invertedDepthTexture.flipY = true;
-        material = this.createWarpMaterial(texture, depthTexture, invertedDepthTexture, layer.opacity, layer.warp_strength ?? 0, layer.invert_depth ?? false);
+        const confidenceTexture = layer.confidence_texture_url ? await loader.loadAsync(layer.confidence_texture_url) : depthTexture;
+        confidenceTexture.colorSpace = THREE.NoColorSpace; confidenceTexture.flipY = true;
+        const source = texture.image as { width?: number; height?: number };
+        material = this.createWarpMaterial(texture, depthTexture, invertedDepthTexture, confidenceTexture, layer.opacity, layer.warp_strength ?? 0, layer.invert_depth ?? false, layer.fine_warp_ratio ?? .25, layer.confidence_amount ?? .7, source.width ?? 1, source.height ?? 1);
       } else {
         material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, premultipliedAlpha: false, depthWrite: false, side: THREE.DoubleSide, opacity: layer.opacity });
       }
@@ -54,25 +57,42 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     }));
     if (this.comparisonUrl) await this.loadComparison(); this.applyLayers(); this.applyMode();
   }
-  private createWarpMaterial(texture: THREE.Texture, depthTexture: THREE.Texture, invertedDepthTexture: THREE.Texture, opacity: number, strength: number, inverted: boolean): THREE.ShaderMaterial {
+  private createWarpMaterial(texture: THREE.Texture, depthTexture: THREE.Texture, invertedDepthTexture: THREE.Texture, confidenceTexture: THREE.Texture, opacity: number, strength: number, inverted: boolean, fineWarpRatio: number, confidenceAmount: number, width: number, height: number): THREE.ShaderMaterial {
     return new THREE.ShaderMaterial({
-      uniforms: { map: { value: texture }, depthMap: { value: depthTexture }, invertedDepthMap: { value: invertedDepthTexture }, viewOffset: { value: new THREE.Vector2() }, strength: { value: strength }, opacity: { value: opacity }, invertDepth: { value: inverted ? 1 : 0 } },
+      uniforms: { map: { value: texture }, depthMap: { value: depthTexture }, invertedDepthMap: { value: invertedDepthTexture }, confidenceMap: { value: confidenceTexture }, viewOffset: { value: new THREE.Vector2() }, texelSize: { value: new THREE.Vector2(1 / width, 1 / height) }, strength: { value: strength }, opacity: { value: opacity }, invertDepth: { value: inverted ? 1 : 0 }, fineWarpRatio: { value: fineWarpRatio }, confidenceAmount: { value: confidenceAmount } },
       vertexShader: `varying vec2 vUv;
         void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
       fragmentShader: `uniform sampler2D map;
         uniform sampler2D depthMap;
         uniform sampler2D invertedDepthMap;
+        uniform sampler2D confidenceMap;
         uniform vec2 viewOffset;
+        uniform vec2 texelSize;
         uniform float strength;
         uniform float opacity;
         uniform float invertDepth;
+        uniform float fineWarpRatio;
+        uniform float confidenceAmount;
         varying vec2 vUv;
+        vec4 softSample(vec2 uv) {
+          vec2 radius = texelSize * 3.0;
+          vec4 center = texture2D(map, uv) * 0.4;
+          vec4 axis = texture2D(map, clamp(uv + vec2(radius.x, 0.0), vec2(0.001), vec2(0.999)))
+            + texture2D(map, clamp(uv - vec2(radius.x, 0.0), vec2(0.001), vec2(0.999)))
+            + texture2D(map, clamp(uv + vec2(0.0, radius.y), vec2(0.001), vec2(0.999)))
+            + texture2D(map, clamp(uv - vec2(0.0, radius.y), vec2(0.001), vec2(0.999)));
+          return center + axis * 0.15;
+        }
         void main() {
           float sampledDepth = mix(texture2D(depthMap, vUv).r, texture2D(invertedDepthMap, vUv).r, invertDepth);
           float depth = sampledDepth - 0.5;
-          vec2 offset = vec2(-viewOffset.x, viewOffset.y) * depth * strength;
-          vec2 warpedUv = clamp(vUv + offset, vec2(0.001), vec2(0.999));
-          vec4 color = texture2D(map, warpedUv);
+          float confidence = mix(1.0, texture2D(confidenceMap, vUv).r, confidenceAmount);
+          vec2 broadOffset = vec2(-viewOffset.x, viewOffset.y) * depth * strength * confidence;
+          vec2 broadUv = clamp(vUv + broadOffset, vec2(0.001), vec2(0.999));
+          vec2 fineUv = clamp(vUv + broadOffset * fineWarpRatio, vec2(0.001), vec2(0.999));
+          vec4 broadColor = softSample(broadUv);
+          vec4 fineColor = texture2D(map, fineUv) - softSample(fineUv);
+          vec4 color = clamp(broadColor + fineColor, 0.0, 1.0);
           gl_FragColor = vec4(color.rgb, color.a * opacity);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
@@ -89,8 +109,8 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     if (!this.scene || !this.camera) return; const distance = this.scene.camera.position[2] - depth; const height = 2 * distance * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)); const width = height * this.scene.source.width / this.scene.source.height;
     mesh.position.set(position.x, position.y, depth + position.z); mesh.scale.set(width * scale.x, height * scale.y, scale.z);
   }
-  private applyLayers(): void { if (!this.scene) return; for (const layer of this.scene.layers) { const mesh = this.meshes.get(layer.id); if (!mesh) continue; mesh.visible = this.mode === '3d' && layer.visible; if (mesh.material instanceof THREE.ShaderMaterial) { mesh.material.uniforms['opacity'].value = layer.opacity; mesh.material.uniforms['strength'].value = layer.warp_strength ?? 0; mesh.material.uniforms['invertDepth'].value = layer.invert_depth ? 1 : 0; } else if (mesh.material instanceof THREE.MeshBasicMaterial) { mesh.material.opacity = layer.opacity; } this.sizePlane(mesh, layer.depth * this.separation, layer.transform.position, layer.transform.scale); } }
+  private applyLayers(): void { if (!this.scene) return; for (const layer of this.scene.layers) { const mesh = this.meshes.get(layer.id); if (!mesh) continue; mesh.visible = this.mode === '3d' && layer.visible; if (mesh.material instanceof THREE.ShaderMaterial) { mesh.material.uniforms['opacity'].value = layer.opacity; mesh.material.uniforms['strength'].value = layer.warp_strength ?? 0; mesh.material.uniforms['invertDepth'].value = layer.invert_depth ? 1 : 0; mesh.material.uniforms['fineWarpRatio'].value = layer.fine_warp_ratio ?? .25; mesh.material.uniforms['confidenceAmount'].value = layer.confidence_amount ?? .7; } else if (mesh.material instanceof THREE.MeshBasicMaterial) { mesh.material.opacity = layer.opacity; } this.sizePlane(mesh, layer.depth * this.separation, layer.transform.position, layer.transform.scale); } }
   private applyMode(): void { for (const mesh of this.meshes.values()) mesh.visible = this.mode === '3d' && (this.scene?.layers.find(l => l.id === [...this.meshes.entries()].find(([,m]) => m === mesh)?.[0])?.visible ?? true); if (this.comparison) this.comparison.visible = this.mode !== '3d'; }
   private animate = (): void => { this.frame = requestAnimationFrame(this.animate); if (this.previewStarted && this.camera && this.controls) { const elapsed = performance.now() - this.previewStarted; const duration = 4200; if (elapsed < duration) { const phase = elapsed / duration; const targetX = this.controls.target.x; this.camera.position.x = targetX + Math.sin(phase * Math.PI * 2) * .34 * Math.sin(phase * Math.PI); this.controls.update(); } else { this.previewStarted = 0; this.resetCamera(); } } this.controls?.update(); if (this.camera && this.controls && this.scene) { const origin = this.scene.camera.position; const target = this.scene.camera.target; const relativeX = (this.camera.position.x - this.controls.target.x) - (origin[0] - target[0]); const relativeY = (this.camera.position.y - this.controls.target.y) - (origin[1] - target[1]); for (const mesh of this.meshes.values()) if (mesh.material instanceof THREE.ShaderMaterial) mesh.material.uniforms['viewOffset'].value.set(relativeX, relativeY); } if (this.renderer && this.camera) this.renderer.render(this.world, this.camera); };
-  private disposeMeshes(): void { for (const mesh of this.meshes.values()) { this.world.remove(mesh); mesh.geometry.dispose(); if (mesh.material instanceof THREE.ShaderMaterial) { (mesh.material.uniforms['map'].value as THREE.Texture).dispose(); const depthMap = mesh.material.uniforms['depthMap'].value as THREE.Texture; const invertedDepthMap = mesh.material.uniforms['invertedDepthMap'].value as THREE.Texture; depthMap.dispose(); if (invertedDepthMap !== depthMap) invertedDepthMap.dispose(); } else if (mesh.material instanceof THREE.MeshBasicMaterial) mesh.material.map?.dispose(); mesh.material.dispose(); } this.meshes.clear(); }
+  private disposeMeshes(): void { for (const mesh of this.meshes.values()) { this.world.remove(mesh); mesh.geometry.dispose(); if (mesh.material instanceof THREE.ShaderMaterial) { (mesh.material.uniforms['map'].value as THREE.Texture).dispose(); const depthMap = mesh.material.uniforms['depthMap'].value as THREE.Texture; const invertedDepthMap = mesh.material.uniforms['invertedDepthMap'].value as THREE.Texture; const confidenceMap = mesh.material.uniforms['confidenceMap'].value as THREE.Texture; depthMap.dispose(); if (invertedDepthMap !== depthMap) invertedDepthMap.dispose(); if (confidenceMap !== depthMap && confidenceMap !== invertedDepthMap) confidenceMap.dispose(); } else if (mesh.material instanceof THREE.MeshBasicMaterial) mesh.material.map?.dispose(); mesh.material.dispose(); } this.meshes.clear(); }
 }

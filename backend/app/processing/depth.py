@@ -9,6 +9,7 @@ import numpy as np
 @dataclass(frozen=True)
 class DepthWarpResult:
     depth_map: np.ndarray
+    confidence_map: np.ndarray
     parameters: dict[str, float | bool]
 
 
@@ -34,7 +35,15 @@ def create_artistic_depth_map(image: np.ndarray, *, smoothing: float = 18.0, abs
     depth = cv2.bilateralFilter(depth.astype(np.float32), 9, 0.08, max(3, sigma / 2))
     depth = cv2.GaussianBlur(depth, (0, 0), sigmaX=max(1.0, sigma / 5))
     depth = _normalize(depth)
+    high_frequency = _normalize(np.abs(working - local), 20, 99.5)
+    gradient_x = cv2.Sobel(working, cv2.CV_32F, 1, 0, ksize=3)
+    gradient_y = cv2.Sobel(working, cv2.CV_32F, 0, 1, ksize=3)
+    edge_ambiguity = _normalize(cv2.magnitude(gradient_x, gradient_y), 20, 99.5)
+    confidence = 1 - np.clip(0.65 * high_frequency + 0.35 * edge_ambiguity, 0, 1)
+    confidence = cv2.GaussianBlur(confidence.astype(np.float32), (0, 0), sigmaX=max(1.0, sigma / 7))
+    confidence = np.clip(0.15 + 0.85 * confidence, 0, 1)
     if invert:
         depth = 1 - depth
     full_size = cv2.resize(depth, (width, height), interpolation=cv2.INTER_CUBIC)
-    return DepthWarpResult(np.clip(full_size, 0, 1).astype(np.float32), {"smoothing": smoothing, "absorptionStrength": absorption_strength, "invert": invert})
+    full_confidence = cv2.resize(confidence, (width, height), interpolation=cv2.INTER_CUBIC)
+    return DepthWarpResult(np.clip(full_size, 0, 1).astype(np.float32), np.clip(full_confidence, 0, 1).astype(np.float32), {"smoothing": smoothing, "absorptionStrength": absorption_strength, "invert": invert})

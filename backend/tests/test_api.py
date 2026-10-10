@@ -26,6 +26,8 @@ def test_project_returns_versioned_scene_and_media():
     assert client.get(nebula["depth_texture_url"]).status_code == 200
     assert nebula["inverted_depth_texture_url"].endswith("/nebula-depth-inverted.png")
     assert client.get(nebula["inverted_depth_texture_url"]).status_code == 200
+    assert nebula["confidence_texture_url"].endswith("/nebula-confidence.png")
+    assert client.get(nebula["confidence_texture_url"]).status_code == 200
     assert body["metrics"]["stars"]["mae"] == 0
     assert client.get(body["comparison"]["differenceUrl"]).status_code == 200
 
@@ -52,11 +54,13 @@ def test_depth_warp_parameters_are_exposed_in_scene():
     response = client.post(
         "/api/v1/projects",
         files={"starless": ("base.png", png(16, 12, (30, 12, 20)), "image/png"), "stars": ("stars.png", png(16, 12, (0, 0, 0)), "image/png")},
-        data={"nebula_warp_strength": "0.08", "nebula_depth_smoothing": "24", "nebula_absorption_strength": "0.8", "nebula_depth_invert": "true"},
+        data={"nebula_warp_strength": "0.08", "nebula_depth_smoothing": "24", "nebula_absorption_strength": "0.8", "nebula_depth_invert": "true", "nebula_fine_warp_ratio": "0.3", "nebula_confidence_amount": "0.9"},
     )
     assert response.status_code == 200
     body = response.json()
     nebula = next(layer for layer in body["scene"]["layers"] if layer["type"] == "nebula")
     assert nebula["warp_strength"] == 0.08
     assert nebula["invert_depth"] is True
+    assert nebula["fine_warp_ratio"] == 0.3
+    assert nebula["confidence_amount"] == 0.9
     assert body["scene"]["processing"]["parameters"]["invert"] is True

@@ -88,7 +88,7 @@ Angular standalone UI, FastAPI boundary, aligned-image validation, immutable sou
 
 ### Phase 3 — nebula laboratory
 
-The current experiment replaces plane decomposition with a smooth artistic depth map derived from broad emission, absorption, and structural cues. The viewer samples this grayscale map in a fragment shader and offsets UVs relative to canonical camera displacement. At the original camera position the offset is zero, preserving the source exactly. Motion is intentionally constrained because the warp cannot synthesize genuinely hidden content.
+The current experiment replaces plane decomposition with a smooth artistic depth map derived from broad emission, absorption, and structural cues. A confidence map reduces motion around high-frequency and ambiguous features. In the viewer, a two-band shader moves a softly sampled broad component at full warp and a high-frequency residual at a configurable fraction. At the original camera position both bands recompose the source. Motion is intentionally constrained because the warp cannot synthesize genuinely hidden content.
 
 ### Phase 4 — visual refinement
 

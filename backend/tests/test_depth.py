@@ -17,7 +17,10 @@ def test_depth_map_is_normalized_smooth_and_deterministic():
     second = create_artistic_depth_map(image)
     assert first.depth_map.shape == image.shape[:2]
     assert 0 <= first.depth_map.min() <= first.depth_map.max() <= 1
+    assert first.confidence_map.shape == image.shape[:2]
+    assert 0 <= first.confidence_map.min() <= first.confidence_map.max() <= 1
     np.testing.assert_array_equal(first.depth_map, second.depth_map)
+    np.testing.assert_array_equal(first.confidence_map, second.confidence_map)
     gradient = np.mean(np.abs(np.diff(first.depth_map, axis=1)))
     assert gradient < 0.08
 
