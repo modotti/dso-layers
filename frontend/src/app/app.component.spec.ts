@@ -29,4 +29,33 @@ describe('AppComponent', () => {
     expect(restored.videoExport.width).toBe(2560);
     expect(restored.videoExport.fps).toBe(60);
   });
+  it('chains a new camera movement from the previous endpoint', () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    const end = { position: [1, 2, 3] as [number, number, number], target: [0, 0, 0] as [number, number, number], roll: 24 };
+    component.updateCameraPath({ start: { position: [0, 0, 5], target: [0, 0, 0], roll: 0 }, end });
+    component.updatePathDuration(12);
+    component.updatePathEasing('ease-out');
+    component.addMovement();
+    expect(component.cameraMovements.length).toBe(2);
+    expect(component.cameraPath.start).toEqual(end);
+    expect(component.cameraPath.end).toBeUndefined();
+    expect(component.cameraPathDuration).toBe(12);
+    expect(component.cameraPathEasing).toBe('ease-out');
+  });
+  it('limits the camera timeline to five movements', () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    for (let index = 0; index < 8; index++) component.addMovement();
+    expect(component.cameraMovements.length).toBe(5);
+  });
+  it('links the active movement start to the previous endpoint', () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    const previousEnd = { position: [2, 1, 4] as [number, number, number], target: [0, 1, 0] as [number, number, number], roll: -16 };
+    component.updateCameraPath({ start: { position: [0, 0, 5], target: [0, 0, 0] }, end: previousEnd });
+    component.addMovement();
+    component.updateCameraPath({ ...component.cameraPath, start: { position: [9, 9, 9], target: [1, 1, 1], roll: 30 } });
+    component.linkActiveMovementToPrevious();
+    expect(component.cameraPath.start).toEqual(previousEnd);
+    expect(component.cameraPath.start).not.toBe(previousEnd);
+    expect(component.cameraRoll).toBe(-16);
+  });
 });
