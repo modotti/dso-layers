@@ -53,4 +53,5 @@
 .camera-keyframes label input { margin: 0; }
 .camera-keyframes label select { flex: 1; min-width: 0; padding: 5px 7px; border: 1px solid #303748; border-radius: 5px; color: #dce3f2; background: #111620; }
 .depth-editor { bottom: 182px; }
-.viewport.playback > :not(aps-viewer) { display: none !important; }
+.viewport.playback > :not(aps-viewer):not(.playback-skip) { display: none !important; }
+.playback-skip { position: absolute; z-index: 6; right: 18px; bottom: 18px; border-color: #7161d1; color: #ddd6ff; background: #111522d9; font-size: 11px; }
