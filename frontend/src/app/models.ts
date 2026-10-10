@@ -25,7 +25,7 @@ export interface LightingSettings { intensity: number; relief: number; direction
 export interface EditorHistoryState { canUndo: boolean; canRedo: boolean; modified: boolean }
 export type ParallaxPath = 'horizontal' | 'vertical' | 'orbit';
 export interface GpuDiagnostics { maxTextureSize: number; renderer: string; previewWidth: number; previewHeight: number; sourceTooLarge: boolean }
-export interface CameraPathPose { position: [number, number, number]; target: [number, number, number] }
+export interface CameraPathPose { position: [number, number, number]; target: [number, number, number]; roll?: number }
 export interface CameraPathState { start?: CameraPathPose; end?: CameraPathPose }
 export type CameraPathEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out';
 export interface VideoExportSettings { width: number; height: number; fps: number }
