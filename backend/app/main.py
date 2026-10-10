@@ -23,6 +23,13 @@ from .store import MediaAsset, MemoryProjectStore
 
 MAX_UPLOAD_BYTES = 256 * 1024 * 1024
 MAX_VIDEO_UPLOAD_BYTES = 512 * 1024 * 1024
+VIDEO_EFFECTS = {
+    "soft-reflections": {
+        "path": Path(__file__).resolve().parents[1] / "assets" / "video-effects" / "soft-reflections.mp4",
+        "blend_mode": "addition",
+        "opacity": 0.14,
+    },
+}
 logger = logging.getLogger("uvicorn.error").getChild("processing")
 store = MemoryProjectStore()
 app = FastAPI(title="Astro Parallax Studio API", version="1.0.0")
@@ -54,7 +61,10 @@ async def _read_upload(upload: UploadFile) -> bytes:
 
 
 @app.post("/api/v1/videos/convert")
-async def convert_video(video: UploadFile = File(...)) -> Response:
+async def convert_video(
+    video: UploadFile = File(...),
+    light_effect: str = Form("none", pattern="^(none|soft-reflections)$"),
+) -> Response:
     if shutil.which("ffmpeg") is None:
         raise HTTPException(status_code=503, detail="FFmpeg is not installed on the backend.")
     payload = await video.read(MAX_VIDEO_UPLOAD_BYTES + 1)
@@ -62,14 +72,21 @@ async def convert_video(video: UploadFile = File(...)) -> Response:
         raise HTTPException(status_code=422, detail="The recorded video is empty.")
     if len(payload) > MAX_VIDEO_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="The recorded video exceeds the 512 MB conversion limit.")
+    effect = VIDEO_EFFECTS.get(light_effect)
+    if effect is not None and not effect["path"].is_file():
+        raise HTTPException(status_code=503, detail=f'The video asset for effect "{light_effect}" is not installed on the backend.')
     conversion_id = str(uuid4())
     started_at = perf_counter()
-    logger.info("[%s] MP4 conversion started input_bytes=%d", conversion_id, len(payload))
+    logger.info("[%s] MP4 conversion started input_bytes=%d light_effect=%s", conversion_id, len(payload), light_effect)
     with tempfile.TemporaryDirectory(prefix="astro-parallax-video-") as directory:
         input_path = Path(directory) / "input.webm"
         output_path = Path(directory) / "output.mp4"
         input_path.write_bytes(payload)
-        command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(input_path), "-an", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(output_path)]
+        if effect is None:
+            command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(input_path), "-an", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(output_path)]
+        else:
+            filter_graph = f"[1:v][0:v]scale2ref=w=main_w:h=main_h[effect][base];[base][effect]blend=all_mode={effect['blend_mode']}:all_opacity={effect['opacity']}:shortest=1[mixed];[mixed]scale=trunc(iw/2)*2:trunc(ih/2)*2[v]"
+            command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(input_path), "-stream_loop", "-1", "-i", str(effect["path"]), "-filter_complex", filter_graph, "-map", "[v]", "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(output_path)]
         result = await asyncio.to_thread(subprocess.run, command, capture_output=True, text=True, timeout=300, check=False)
         if result.returncode != 0 or not output_path.exists():
             logger.error("[%s] MP4 conversion failed code=%d error=%s", conversion_id, result.returncode, result.stderr[-1000:])

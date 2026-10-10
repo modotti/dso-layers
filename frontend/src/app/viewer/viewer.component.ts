@@ -28,7 +28,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() cameraRoll = 0;
   @Input() cameraPathDuration = 7;
   @Input() cameraPathEasing: CameraPathEasing = 'ease-in-out';
-  @Input() videoExport: VideoExportSettings = { width: 1920, height: 1080, fps: 30 };
+  @Input() videoExport: VideoExportSettings = { width: 1920, height: 1080, fps: 30, lightEffect: 'none' };
   @Input() editorEnabled = false;
   @Input() brush: DepthBrushSettings = { tool: 'near', size: 80, strength: .25 };
   @Output() historyChange = new EventEmitter<EditorHistoryState>();
@@ -87,7 +87,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       const stream = captureStream(this.videoExport.fps); const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 12_000_000 }); this.exportRecorder = recorder;
       recorder.ondataavailable = event => { if (event.data.size) this.exportChunks.push(event.data); };
       recorder.onerror = () => { this.exportError = 'The browser could not encode the video.'; if (recorder.state !== 'inactive') recorder.stop(); };
-      recorder.onstop = () => { for (const track of stream.getTracks()) track.stop(); window.clearTimeout(this.exportStopFallback); window.clearTimeout(this.exportWatchdog); this.exportStopFallback = this.exportWatchdog = undefined; if (!this.exporting) return; const blob = new Blob(this.exportChunks, { type: this.exportMimeType }); if (!blob.size || this.exportError) { this.restoreAfterVideoExport(this.exportError || 'The browser produced an empty video file.'); return; } this.restoreRendererBehindCover(); this.zone.run(() => { this.exportStatus = 'Converting to MP4'; this.exportStatusDetail = 'FFmpeg is encoding H.264 at high quality…'; }); this.api.convertVideo(blob).subscribe({ next: mp4 => { try { this.downloadVideo(mp4, 'mp4'); this.restoreAfterVideoExport(); } catch { this.restoreAfterVideoExport('The MP4 was converted but could not be downloaded.'); } }, error: (error: Error) => this.restoreAfterVideoExport(error.message) }); };
+      recorder.onstop = () => { for (const track of stream.getTracks()) track.stop(); window.clearTimeout(this.exportStopFallback); window.clearTimeout(this.exportWatchdog); this.exportStopFallback = this.exportWatchdog = undefined; if (!this.exporting) return; const blob = new Blob(this.exportChunks, { type: this.exportMimeType }); if (!blob.size || this.exportError) { this.restoreAfterVideoExport(this.exportError || 'The browser produced an empty video file.'); return; } this.restoreRendererBehindCover(); this.zone.run(() => { this.exportStatus = 'Converting to MP4'; this.exportStatusDetail = 'FFmpeg is encoding H.264 at high quality…'; }); this.api.convertVideo(blob, this.videoExport.lightEffect).subscribe({ next: mp4 => { try { this.downloadVideo(mp4, 'mp4'); this.restoreAfterVideoExport(); } catch { this.restoreAfterVideoExport('The MP4 was converted but could not be downloaded.'); } }, error: (error: Error) => this.restoreAfterVideoExport(error.message) }); };
       recorder.start(250); this.startCameraSequence(true); const totalDuration = movements.reduce((total, movement) => total + THREE.MathUtils.clamp(movement.duration, 5, 20), 0); this.exportWatchdog = window.setTimeout(() => { if (!this.exporting) return; this.exportError = 'Video recording timed out before the browser finalized the file.'; this.finishVideoRecording(); }, totalDuration * 1000 + 5000);
     } catch { this.restoreAfterVideoExport('Video recording could not be started.'); }
   }
