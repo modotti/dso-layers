@@ -126,3 +126,9 @@ def media(project_id: str, name: str) -> Response:
     if asset is None:
         return Response(status_code=404)
     return Response(asset.content, media_type=asset.media_type, headers={"Cache-Control": "no-store"})
+
+
+@app.delete("/api/v1/projects/{project_id}", status_code=204)
+def delete_project(project_id: str) -> Response:
+    store.delete_project(project_id)
+    return Response(status_code=204)

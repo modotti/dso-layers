@@ -25,4 +25,6 @@ export class ApiService {
       return throwError(() => new Error(typeof detail === 'object' ? detail.message : 'Processing failed. Confirm the backend is running and try again.'));
     }));
   }
+
+  deleteProject(projectId: string): void { this.http.delete(`/api/v1/projects/${projectId}`).subscribe(); }
 }

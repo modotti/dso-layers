@@ -29,19 +29,19 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   private readonly zone = inject(NgZone);
   private renderer?: THREE.WebGLRenderer; private world = new THREE.Scene(); private comparisonWorld = new THREE.Scene(); private comparisonCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1); private camera?: THREE.PerspectiveCamera; private controls?: OrbitControls;
   private meshes = new Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.Material>>(); private comparison?: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
-  private frame = 0; private observer?: ResizeObserver; private previewStarted = 0; private previewPath: ParallaxPath = 'horizontal'; private zoomStarted = 0; private zoomFrom = 5; private zoomTo = 5; private zoomDirection = new THREE.Vector3(0, 0, 1); private comparisonRequest = 0;
+  private frame = 0; private observer?: ResizeObserver; private previewStarted = 0; private previewPath: ParallaxPath = 'horizontal'; private zoomStarted = 0; private zoomFrom = 5; private zoomTo = 5; private zoomDirection = new THREE.Vector3(0, 0, 1); private comparisonRequest = 0; private sceneLoadGeneration = 0; private loadedSceneKey = '';
   private editable?: EditableMaps; private drawing = false; private lastPaintUv?: THREE.Vector2;
   cursorVisible = false; cursorTransform = 'translate(-999px,-999px)';
 
-  ngAfterViewInit(): void { this.setup(); if (this.scene) void this.loadScene(); }
+  ngAfterViewInit(): void { this.setup(); if (this.scene) { this.loadedSceneKey = this.sceneKey(); void this.loadScene(); } }
   ngOnChanges(changes: SimpleChanges): void {
     if (!this.renderer) return;
-    if (changes['scene']) void this.loadScene(); else if (changes['comparisonUrl'] && this.comparisonUrl) void this.loadComparison(); else this.applyLayers();
+    if (changes['scene']) { const key = this.sceneKey(); if (key !== this.loadedSceneKey) { this.loadedSceneKey = key; void this.loadScene(); } else this.applyLayers(); } else if (changes['comparisonUrl'] && this.comparisonUrl) void this.loadComparison(); else this.applyLayers();
     if (changes['differenceGain'] && this.comparison) this.comparison.material.uniforms['gain'].value = this.mode === 'difference' ? this.differenceGain : 1;
     if (changes['editorEnabled'] && this.controls) { this.controls.enabled = !this.editorEnabled; if (!this.editorEnabled) { this.drawing = false; this.cursorVisible = false; } }
     this.applyMode();
   }
-  ngOnDestroy(): void { cancelAnimationFrame(this.frame); this.observer?.disconnect(); this.controls?.dispose(); if (this.renderer) { const canvas = this.renderer.domElement; canvas.removeEventListener('pointerdown', this.onPointerDown); canvas.removeEventListener('pointermove', this.onPointerMove); canvas.removeEventListener('pointerup', this.onPointerUp); canvas.removeEventListener('pointercancel', this.onPointerUp); canvas.removeEventListener('pointerleave', this.onPointerLeave); } this.disposeComparison(); this.disposeMeshes(); this.renderer?.dispose(); }
+  ngOnDestroy(): void { this.sceneLoadGeneration++; cancelAnimationFrame(this.frame); this.observer?.disconnect(); this.controls?.dispose(); if (this.renderer) { const canvas = this.renderer.domElement; canvas.removeEventListener('pointerdown', this.onPointerDown); canvas.removeEventListener('pointermove', this.onPointerMove); canvas.removeEventListener('pointerup', this.onPointerUp); canvas.removeEventListener('pointercancel', this.onPointerUp); canvas.removeEventListener('pointerleave', this.onPointerLeave); } this.disposeComparison(); this.disposeMeshes(); this.renderer?.dispose(); }
   resetCamera(): void { if (!this.camera || !this.scene || !this.controls) return; this.previewStarted = 0; this.zoomStarted = 0; this.camera.position.fromArray(this.scene.camera.position); this.camera.up.set(0, 1, 0); this.controls.target.fromArray(this.scene.camera.target); this.camera.lookAt(this.controls.target); this.camera.updateMatrixWorld(true); this.controls.update(); }
   startParallaxPreview(path: ParallaxPath = 'horizontal'): void { this.resetCamera(); this.previewPath = path; this.previewStarted = performance.now(); }
   startZoom(direction: 'in' | 'out'): void { if (!this.camera || !this.controls) return; this.previewStarted = 0; this.zoomFrom = this.camera.position.distanceTo(this.controls.target); this.zoomTo = direction === 'in' ? this.controls.minDistance : this.controls.maxDistance; this.zoomDirection.copy(this.camera.position).sub(this.controls.target).normalize(); this.zoomStarted = performance.now(); }
@@ -63,18 +63,26 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     this.emitDiagnostics();
   }
   private resize(): void { if (!this.renderer || !this.camera) return; const bounds = this.host.nativeElement.getBoundingClientRect(); const w = Math.round(bounds.width); const h = Math.round(bounds.height); if (!w || !h) return; this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.clearViewOffset(); this.camera.filmOffset = 0; this.camera.updateProjectionMatrix(); this.sizeComparison(w / h); this.applyLayers(); }
+  private sceneKey(): string { return this.scene?.layers.map(layer => `${layer.id}:${layer.texture_url}:${layer.depth_texture_url ?? ''}:${layer.confidence_texture_url ?? ''}`).join('|') ?? ''; }
   private async loadScene(): Promise<void> {
-    this.disposeMeshes(); if (!this.scene || !this.camera || !this.controls) return;
-    this.camera.fov = this.scene.camera.fov; this.camera.near = this.scene.camera.near; this.camera.far = this.scene.camera.far; this.controls.minDistance = this.scene.camera.min_distance; this.controls.maxDistance = this.scene.camera.max_distance; this.resetCamera();
+    const generation = ++this.sceneLoadGeneration; const scene = this.scene; this.comparisonRequest++; this.disposeComparison(); this.disposeMeshes(); if (!scene || !this.camera || !this.controls) return;
+    this.camera.fov = scene.camera.fov; this.camera.near = scene.camera.near; this.camera.far = scene.camera.far; this.controls.minDistance = scene.camera.min_distance; this.controls.maxDistance = scene.camera.max_distance; this.resetCamera();
     const loader = new THREE.TextureLoader();
-    await Promise.all(this.scene.layers.map(async layer => {
-      const texture = await loader.loadAsync(layer.texture_url); texture.colorSpace = THREE.SRGBColorSpace; texture.flipY = true;
+    await Promise.all(scene.layers.map(async layer => {
+      const [texture, loadedDepth, loadedInverted, loadedConfidence] = await Promise.all([
+        loader.loadAsync(layer.texture_url),
+        layer.depth_texture_url ? loader.loadAsync(layer.depth_texture_url) : Promise.resolve(null),
+        layer.inverted_depth_texture_url ? loader.loadAsync(layer.inverted_depth_texture_url) : Promise.resolve(null),
+        layer.confidence_texture_url ? loader.loadAsync(layer.confidence_texture_url) : Promise.resolve(null),
+      ]);
+      if (generation !== this.sceneLoadGeneration) { for (const candidate of new Set([texture, loadedDepth, loadedInverted, loadedConfidence])) candidate?.dispose(); return; }
+      texture.colorSpace = THREE.SRGBColorSpace; texture.flipY = true;
       let material: THREE.Material;
-      if (layer.depth_texture_url) {
-        const depthTexture = await loader.loadAsync(layer.depth_texture_url); depthTexture.colorSpace = THREE.NoColorSpace; depthTexture.flipY = true;
-        const invertedDepthTexture = layer.inverted_depth_texture_url ? await loader.loadAsync(layer.inverted_depth_texture_url) : depthTexture;
+      if (loadedDepth) {
+        const depthTexture = loadedDepth; depthTexture.colorSpace = THREE.NoColorSpace; depthTexture.flipY = true;
+        const invertedDepthTexture = loadedInverted ?? depthTexture;
         invertedDepthTexture.colorSpace = THREE.NoColorSpace; invertedDepthTexture.flipY = true;
-        const confidenceTexture = layer.confidence_texture_url ? await loader.loadAsync(layer.confidence_texture_url) : depthTexture;
+        const confidenceTexture = loadedConfidence ?? depthTexture;
         confidenceTexture.colorSpace = THREE.NoColorSpace; confidenceTexture.flipY = true;
         const source = texture.image as { width?: number; height?: number };
         material = this.createWarpMaterial(texture, depthTexture, invertedDepthTexture, confidenceTexture, layer.opacity, layer.warp_strength ?? 0, layer.invert_depth ?? false, layer.fine_warp_ratio ?? .25, layer.confidence_amount ?? .7, source.width ?? 1, source.height ?? 1);
@@ -87,6 +95,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       }
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material); mesh.renderOrder = layer.order; this.world.add(mesh); this.meshes.set(layer.id, mesh);
     }));
+    if (generation !== this.sceneLoadGeneration) return;
     if (this.comparisonUrl) await this.loadComparison(); this.applyLayers(); this.applyMode();
     this.emitHistory();
     this.emitDiagnostics();

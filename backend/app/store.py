@@ -22,3 +22,7 @@ class MemoryProjectStore:
 
     def get_media(self, project_id: str, name: str) -> MediaAsset | None:
         return self._media.get((project_id, name))
+
+    def delete_project(self, project_id: str) -> None:
+        self._media = {key: value for key, value in self._media.items() if key[0] != project_id}
+        self._sources = {key: value for key, value in self._sources.items() if key[0] != project_id}

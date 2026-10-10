@@ -64,3 +64,12 @@ def test_depth_warp_parameters_are_exposed_in_scene():
     assert nebula["fine_warp_ratio"] == 0.3
     assert nebula["confidence_amount"] == 0.9
     assert body["scene"]["processing"]["parameters"]["invert"] is True
+
+
+def test_project_assets_can_be_released():
+    response = client.post("/api/v1/projects", files={"starless": ("base.png", png(4, 3, (10, 20, 30)), "image/png"), "stars": ("stars.png", png(4, 3, (0, 0, 0)), "image/png")})
+    body = response.json()
+    media_url = body["scene"]["layers"][0]["texture_url"]
+    assert client.get(media_url).status_code == 200
+    assert client.delete(f"/api/v1/projects/{body['projectId']}").status_code == 204
+    assert client.get(media_url).status_code == 404
