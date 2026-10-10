@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { SceneDocument, SceneLayer, ViewerMode } from '../models';
 
-@Component({ selector: 'aps-viewer', standalone: true, template: '<div #host class="host" aria-label="Interactive 3D viewport"></div>', styles: [':host,.host{display:block;width:100%;height:100%;min-height:360px}'] })
+@Component({ selector: 'aps-viewer', standalone: true, template: '<div #host class="host" aria-label="Interactive 3D viewport"></div>', styles: [':host,.host{display:block;width:100%;height:100%;min-height:360px}.host{position:relative;overflow:hidden}'] })
 export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() scene: SceneDocument | null = null;
   @Input() mode: ViewerMode = '3d';
@@ -28,12 +28,13 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   private setup(): void {
     const element = this.host.nativeElement;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false }); this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); this.renderer.outputColorSpace = THREE.SRGBColorSpace; this.renderer.setClearColor(0x03050a); element.appendChild(this.renderer.domElement);
+    Object.assign(this.renderer.domElement.style, { display: 'block', position: 'absolute', inset: '0', width: '100%', height: '100%' });
     this.camera = new THREE.PerspectiveCamera(45, 1, .1, 100); this.camera.position.set(0, 0, 5);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement); this.controls.enableDamping = true; this.controls.minDistance = 3.5; this.controls.maxDistance = 7; this.controls.maxPolarAngle = Math.PI / 2 + .31; this.controls.minPolarAngle = Math.PI / 2 - .31;
     this.observer = new ResizeObserver(() => this.resize()); this.observer.observe(element); this.resize();
     this.zone.runOutsideAngular(() => this.animate());
   }
-  private resize(): void { if (!this.renderer || !this.camera) return; const { clientWidth: w, clientHeight: h } = this.host.nativeElement; if (!w || !h) return; this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); }
+  private resize(): void { if (!this.renderer || !this.camera) return; const bounds = this.host.nativeElement.getBoundingClientRect(); const w = Math.round(bounds.width); const h = Math.round(bounds.height); if (!w || !h) return; this.renderer.setSize(w, h, false); this.camera.aspect = w / h; this.camera.clearViewOffset(); this.camera.filmOffset = 0; this.camera.updateProjectionMatrix(); this.applyLayers(); }
   private async loadScene(): Promise<void> {
     this.disposeMeshes(); if (!this.scene || !this.camera || !this.controls) return;
     this.camera.fov = this.scene.camera.fov; this.camera.near = this.scene.camera.near; this.camera.far = this.scene.camera.far; this.controls.minDistance = this.scene.camera.min_distance; this.controls.maxDistance = this.scene.camera.max_distance; this.resetCamera();
