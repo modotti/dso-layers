@@ -85,7 +85,7 @@ async def convert_video(
         if effect is None:
             command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(input_path), "-an", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(output_path)]
         else:
-            filter_graph = f"[1:v][0:v]scale2ref=w=main_w:h=main_h[effect][base];[base][effect]blend=all_mode={effect['blend_mode']}:all_opacity={effect['opacity']}:shortest=1[mixed];[mixed]scale=trunc(iw/2)*2:trunc(ih/2)*2[v]"
+            filter_graph = f"[1:v][0:v]scale2ref=w=rw:h=rh[effect][base];[base][effect]blend=all_mode={effect['blend_mode']}:all_opacity={effect['opacity']}:shortest=1[mixed];[mixed]scale=trunc(iw/2)*2:trunc(ih/2)*2[v]"
             command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(input_path), "-stream_loop", "-1", "-i", str(effect["path"]), "-filter_complex", filter_graph, "-map", "[v]", "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(output_path)]
         result = await asyncio.to_thread(subprocess.run, command, capture_output=True, text=True, timeout=300, check=False)
         if result.returncode != 0 or not output_path.exists():

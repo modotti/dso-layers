@@ -30,6 +30,6 @@ export class ApiService {
 
   convertVideo(video: Blob, lightEffect: string = 'none'): Observable<Blob> {
     const form = new FormData(); form.append('video', video, 'camera-path.webm'); form.append('light_effect', lightEffect);
-    return this.http.post('/api/v1/videos/convert', form, { responseType: 'blob' }).pipe(catchError(() => throwError(() => new Error('MP4 conversion failed. Confirm that FFmpeg is installed on the backend.'))));
+    return this.http.post('/api/v1/videos/convert', form, { responseType: 'blob' }).pipe(catchError(() => throwError(() => new Error('MP4 conversion failed. Check the backend terminal for the FFmpeg error.'))));
   }
 }

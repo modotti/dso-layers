@@ -102,6 +102,7 @@ def test_video_light_effect_is_composited_with_ffmpeg(monkeypatch, tmp_path):
         assert "-stream_loop" in command
         assert str(effect_path) in command
         filter_graph = command[command.index("-filter_complex") + 1]
+        assert "scale2ref=w=rw:h=rh" in filter_graph
         assert "all_mode=addition" in filter_graph
         assert "all_opacity=0.14" in filter_graph
         Path(command[-1]).write_bytes(b"mp4-with-reflections")
