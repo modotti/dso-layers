@@ -1,4 +1,6 @@
 from io import BytesIO
+from pathlib import Path
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 from PIL import Image
@@ -74,3 +76,17 @@ def test_project_assets_can_be_released():
     assert client.get(media_url).status_code == 200
     assert client.delete(f"/api/v1/projects/{body['projectId']}").status_code == 204
     assert client.get(media_url).status_code == 404
+
+
+def test_webm_video_can_be_converted_to_mp4(monkeypatch):
+    monkeypatch.setattr("app.main.shutil.which", lambda _: "/usr/local/bin/ffmpeg")
+
+    def convert(command, **_):
+        Path(command[-1]).write_bytes(b"converted-mp4")
+        return SimpleNamespace(returncode=0, stderr="")
+
+    monkeypatch.setattr("app.main.subprocess.run", convert)
+    response = client.post("/api/v1/videos/convert", files={"video": ("camera.webm", b"recorded-webm", "video/webm")})
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "video/mp4"
+    assert response.content == b"converted-mp4"

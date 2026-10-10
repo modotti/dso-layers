@@ -16,11 +16,15 @@ describe('AppComponent', () => {
     first.updateLighting('intensity', .11);
     first.updatePathDuration(16);
     first.updatePathEasing('ease-out');
+    first.updateVideoExport('width', 2560);
+    first.updateVideoExport('fps', 60);
     const restored = TestBed.createComponent(AppComponent).componentInstance;
     expect(restored.separation).toBe(2.2);
     expect(restored.starSettings.warpStrength).toBe(0.035);
     expect(restored.lighting.intensity).toBe(.11);
     expect(restored.cameraPathDuration).toBe(16);
     expect(restored.cameraPathEasing).toBe('ease-out');
+    expect(restored.videoExport.width).toBe(2560);
+    expect(restored.videoExport.fps).toBe(60);
   });
 });

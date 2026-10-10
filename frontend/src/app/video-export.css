@@ -1,0 +1,28 @@
+.video-export {
+  position: absolute;
+  z-index: 4;
+  right: 16px;
+  bottom: 16px;
+  width: 292px;
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid #343b50;
+  border-radius: 9px;
+  background: #0b0f18e8;
+}
+
+.video-export header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  color: #8d96aa;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+}
+
+.video-export header b { color: #cfc6ff; }
+.video-export > select { width: 100%; }
+.video-export > div { display: grid; grid-template-columns: 1fr 1fr 0.8fr; gap: 6px; margin-top: 8px; }
+.video-export label { color: #7f899c; font-size: 9px; }
+.video-export input, .video-export select { box-sizing: border-box; width: 100%; margin-top: 3px; padding: 6px; border: 1px solid #303748; border-radius: 5px; color: #dce3f2; background: #111620; }
+.video-export button { width: 100%; margin-top: 9px; padding: 7px; color: #d5caff; border-color: #6555bd; background: #29204f; font-size: 10px; }
