@@ -24,3 +24,5 @@ export interface DepthBrushSettings { tool: DepthBrushTool; size: number; streng
 export interface EditorHistoryState { canUndo: boolean; canRedo: boolean; modified: boolean }
 export type ParallaxPath = 'horizontal' | 'vertical' | 'orbit';
 export interface GpuDiagnostics { maxTextureSize: number; renderer: string; previewWidth: number; previewHeight: number; sourceTooLarge: boolean }
+export interface CameraPathPose { position: [number, number, number]; target: [number, number, number] }
+export interface CameraPathState { start?: CameraPathPose; end?: CameraPathPose }

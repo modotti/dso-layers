@@ -33,3 +33,14 @@
 .depth-editor p { margin: 10px 0 0; color: #757f94; font-size: 9px; line-height: 1.4; }
 .controls .solo { border-color: #9986ff; color: #d9d1ff; background: #342b64; }
 .refinement p { color: #9990c4; }
+.camera-keyframes { position: absolute; z-index: 4; left: 16px; bottom: 62px; width: 330px; box-sizing: border-box; padding: 9px 10px; border: 1px solid #343b50; border-radius: 9px; background: #0b0f18e8; }
+.camera-keyframes > div { display: grid; grid-template-columns: 1fr 1fr 1.15fr; gap: 6px; }
+.camera-keyframes button { padding: 7px 5px; font-size: 10px; }
+.camera-keyframes .mark-start { color: #77e5ba; border-color: #286c58; }
+.camera-keyframes .mark-end { color: #ffb58f; border-color: #874d35; }
+.camera-keyframes .play-path { color: #d5caff; border-color: #6555bd; background: #29204f; }
+.camera-keyframes button.saved { box-shadow: inset 0 0 0 1px currentColor, 0 0 10px #7966df44; }
+.camera-keyframes label { display: flex; align-items: center; gap: 9px; margin-top: 8px; color: #949daf; font-size: 10px; }
+.camera-keyframes label span { min-width: 76px; display: flex; justify-content: space-between; }
+.camera-keyframes label input { margin: 0; }
+.depth-editor { bottom: 145px; }

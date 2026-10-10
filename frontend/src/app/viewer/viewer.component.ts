@@ -1,7 +1,7 @@
 import { AfterViewInit, Component, ElementRef, Input, NgZone, OnChanges, OnDestroy, Output, EventEmitter, SimpleChanges, ViewChild, inject } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { DepthBrushSettings, EditorHistoryState, GpuDiagnostics, ParallaxPath, SceneDocument, SceneLayer, ViewerMode } from '../models';
+import { CameraPathState, DepthBrushSettings, EditorHistoryState, GpuDiagnostics, ParallaxPath, SceneDocument, SceneLayer, ViewerMode } from '../models';
 
 interface EditSnapshot { depth: Uint8ClampedArray; confidence: Uint8ClampedArray }
 interface EditableMaps {
@@ -21,15 +21,18 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() separation = 1;
   @Input() soloLayerId: string | null = null;
   @Input() differenceGain = 8;
+  @Input() cameraPath: CameraPathState = {};
+  @Input() cameraPathDuration = 7;
   @Input() editorEnabled = false;
   @Input() brush: DepthBrushSettings = { tool: 'near', size: 80, strength: .25 };
   @Output() historyChange = new EventEmitter<EditorHistoryState>();
   @Output() diagnostics = new EventEmitter<GpuDiagnostics>();
+  @Output() cameraPathChange = new EventEmitter<CameraPathState>();
   @ViewChild('host', { static: true }) host!: ElementRef<HTMLDivElement>;
   private readonly zone = inject(NgZone);
   private renderer?: THREE.WebGLRenderer; private world = new THREE.Scene(); private comparisonWorld = new THREE.Scene(); private comparisonCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1); private camera?: THREE.PerspectiveCamera; private controls?: OrbitControls;
   private meshes = new Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.Material>>(); private comparison?: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
-  private frame = 0; private observer?: ResizeObserver; private previewStarted = 0; private previewPath: ParallaxPath = 'horizontal'; private zoomStarted = 0; private zoomFrom = 5; private zoomTo = 5; private zoomDirection = new THREE.Vector3(0, 0, 1); private driftZoom = false; private driftPhaseX = 0; private driftPhaseY = 0; private driftAmplitudeX = .4; private driftAmplitudeY = .28; private comparisonRequest = 0; private sceneLoadGeneration = 0; private loadedSceneKey = '';
+  private frame = 0; private observer?: ResizeObserver; private previewStarted = 0; private previewPath: ParallaxPath = 'horizontal'; private zoomStarted = 0; private zoomFrom = 5; private zoomTo = 5; private zoomDirection = new THREE.Vector3(0, 0, 1); private driftZoom = false; private driftPhaseX = 0; private driftPhaseY = 0; private driftAmplitudeX = .4; private driftAmplitudeY = .28; private cameraPathStarted = 0; private comparisonRequest = 0; private sceneLoadGeneration = 0; private loadedSceneKey = '';
   private editable?: EditableMaps; private drawing = false; private lastPaintUv?: THREE.Vector2;
   cursorVisible = false; cursorTransform = 'translate(-999px,-999px)';
 
@@ -42,10 +45,12 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     this.applyMode();
   }
   ngOnDestroy(): void { this.sceneLoadGeneration++; cancelAnimationFrame(this.frame); this.observer?.disconnect(); this.controls?.dispose(); if (this.renderer) { const canvas = this.renderer.domElement; canvas.removeEventListener('pointerdown', this.onPointerDown); canvas.removeEventListener('pointermove', this.onPointerMove); canvas.removeEventListener('pointerup', this.onPointerUp); canvas.removeEventListener('pointercancel', this.onPointerUp); canvas.removeEventListener('pointerleave', this.onPointerLeave); } this.disposeComparison(); this.disposeMeshes(); this.renderer?.dispose(); }
-  resetCamera(): void { if (!this.camera || !this.scene || !this.controls) return; this.previewStarted = 0; this.zoomStarted = 0; this.driftZoom = false; this.camera.position.fromArray(this.scene.camera.position); this.camera.up.set(0, 1, 0); this.controls.target.fromArray(this.scene.camera.target); this.camera.lookAt(this.controls.target); this.camera.updateMatrixWorld(true); this.controls.update(); }
+  resetCamera(): void { if (!this.camera || !this.scene || !this.controls) return; this.previewStarted = 0; this.zoomStarted = 0; this.cameraPathStarted = 0; this.driftZoom = false; this.camera.position.fromArray(this.scene.camera.position); this.camera.up.set(0, 1, 0); this.controls.target.fromArray(this.scene.camera.target); this.camera.lookAt(this.controls.target); this.camera.updateMatrixWorld(true); this.controls.update(); }
   startParallaxPreview(path: ParallaxPath = 'horizontal'): void { this.resetCamera(); this.previewPath = path; this.previewStarted = performance.now(); }
   startZoom(direction: 'in' | 'out'): void { if (!this.camera || !this.controls) return; this.previewStarted = 0; this.driftZoom = false; this.zoomFrom = this.camera.position.distanceTo(this.controls.target); this.zoomTo = direction === 'in' ? this.controls.minDistance : this.controls.maxDistance; this.zoomDirection.copy(this.camera.position).sub(this.controls.target).normalize(); this.zoomStarted = performance.now(); }
   startDriftZoom(): void { if (!this.camera || !this.controls) return; this.driftPhaseX = Math.random() * Math.PI * 2; this.driftPhaseY = Math.random() * Math.PI * 2; this.driftAmplitudeX = .34 + Math.random() * .28; this.driftAmplitudeY = .22 + Math.random() * .22; this.startZoom('in'); this.driftZoom = true; }
+  captureCameraPoint(point: 'start' | 'end'): void { if (!this.camera || !this.controls) return; const pose = { position: this.camera.position.toArray() as [number, number, number], target: this.controls.target.toArray() as [number, number, number] }; this.cameraPathChange.emit({ ...this.cameraPath, [point]: pose }); }
+  playCameraPath(): void { if (!this.cameraPath.start || !this.cameraPath.end) return; this.previewStarted = 0; this.zoomStarted = 0; this.driftZoom = false; this.cameraPathStarted = performance.now(); }
   undoEdit(): void { if (!this.editable?.undo.length) return; const current = this.captureSnapshot(); const previous = this.editable.undo.pop(); if (!current || !previous) return; this.editable.redo.push(current); this.restoreSnapshot(previous); this.emitHistory(); }
   redoEdit(): void { if (!this.editable?.redo.length) return; const current = this.captureSnapshot(); const next = this.editable.redo.pop(); if (!current || !next) return; this.editable.undo.push(current); this.restoreSnapshot(next); this.emitHistory(); }
   resetEdits(): void { if (!this.editable) return; this.restoreSnapshot(this.editable.original); this.editable.undo = []; this.editable.redo = []; this.emitHistory(); }
@@ -57,7 +62,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     this.camera = new THREE.PerspectiveCamera(45, 1, .1, 100); this.camera.position.set(0, 0, 5);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement); this.controls.enableDamping = true; this.controls.minDistance = 3.5; this.controls.maxDistance = 7; this.controls.maxPolarAngle = Math.PI / 2 + .31; this.controls.minPolarAngle = Math.PI / 2 - .31;
     this.controls.minAzimuthAngle = -.42; this.controls.maxAzimuthAngle = .42;
-    this.controls.addEventListener('start', () => { this.previewStarted = 0; this.zoomStarted = 0; });
+    this.controls.addEventListener('start', () => { this.previewStarted = 0; this.zoomStarted = 0; this.cameraPathStarted = 0; });
     this.renderer.domElement.addEventListener('pointerdown', this.onPointerDown); this.renderer.domElement.addEventListener('pointermove', this.onPointerMove); this.renderer.domElement.addEventListener('pointerup', this.onPointerUp); this.renderer.domElement.addEventListener('pointercancel', this.onPointerUp); this.renderer.domElement.addEventListener('pointerleave', this.onPointerLeave);
     this.observer = new ResizeObserver(() => this.resize()); this.observer.observe(element); this.resize();
     this.zone.runOutsideAngular(() => this.animate());
@@ -208,6 +213,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     this.frame = requestAnimationFrame(this.animate);
     if (this.previewStarted && this.camera && this.controls) { const elapsed = performance.now() - this.previewStarted; const duration = 4200; if (elapsed < duration) { const phase = elapsed / duration; const envelope = Math.sin(phase * Math.PI); const angle = phase * Math.PI * 2; const horizontalRange = this.previewPath === 'orbit' ? .72 : .82; const verticalRange = this.previewPath === 'orbit' ? .48 : .58; const x = this.previewPath === 'vertical' ? 0 : Math.sin(angle) * horizontalRange * envelope; const y = this.previewPath === 'horizontal' ? 0 : (this.previewPath === 'orbit' ? Math.cos(angle) : Math.sin(angle)) * verticalRange * envelope; this.camera.position.set(this.controls.target.x + x, this.controls.target.y + y, this.scene?.camera.position[2] ?? 5); this.controls.update(); } else { this.previewStarted = 0; this.resetCamera(); } }
     if (this.zoomStarted && this.camera && this.controls) { const phase = Math.min(1, (performance.now() - this.zoomStarted) / 5000); const eased = phase * phase * phase * (phase * (phase * 6 - 15) + 10); const distance = THREE.MathUtils.lerp(this.zoomFrom, this.zoomTo, eased); this.camera.position.copy(this.controls.target).addScaledVector(this.zoomDirection, distance); if (this.driftZoom) { const envelope = Math.sin(Math.PI * phase) ** 2; const driftX = Math.sin(phase * Math.PI * 2 + this.driftPhaseX) * this.driftAmplitudeX * envelope; const driftY = Math.sin(phase * Math.PI * 3 + this.driftPhaseY) * this.driftAmplitudeY * envelope; this.camera.position.x += driftX; this.camera.position.y += driftY; } this.controls.update(); if (phase >= 1) { this.zoomStarted = 0; this.driftZoom = false; } }
+    if (this.cameraPathStarted && this.camera && this.controls && this.cameraPath.start && this.cameraPath.end) { const duration = THREE.MathUtils.clamp(this.cameraPathDuration, 5, 10) * 1000; const phase = Math.min(1, (performance.now() - this.cameraPathStarted) / duration); const eased = phase * phase * phase * (phase * (phase * 6 - 15) + 10); const startPosition = new THREE.Vector3().fromArray(this.cameraPath.start.position); const endPosition = new THREE.Vector3().fromArray(this.cameraPath.end.position); const startTarget = new THREE.Vector3().fromArray(this.cameraPath.start.target); const endTarget = new THREE.Vector3().fromArray(this.cameraPath.end.target); this.camera.position.lerpVectors(startPosition, endPosition, eased); this.controls.target.lerpVectors(startTarget, endTarget, eased); this.controls.update(); if (phase >= 1) this.cameraPathStarted = 0; }
     if (this.controls && !this.previewStarted) { this.controls.target.x = THREE.MathUtils.clamp(this.controls.target.x, -.35, .35); this.controls.target.y = THREE.MathUtils.clamp(this.controls.target.y, -.35, .35); this.controls.update(); }
     if (this.camera && this.controls && this.scene) { const origin = this.scene.camera.position; const target = this.scene.camera.target; const relativeX = (this.camera.position.x - this.controls.target.x) - (origin[0] - target[0]); const relativeY = (this.camera.position.y - this.controls.target.y) - (origin[1] - target[1]); for (const mesh of this.meshes.values()) if (mesh.material instanceof THREE.ShaderMaterial) mesh.material.uniforms['viewOffset'].value.set(relativeX, relativeY); }
     if (this.renderer && this.camera) { if (this.mode === '3d') this.renderer.render(this.world, this.camera); else this.renderer.render(this.comparisonWorld, this.comparisonCamera); }

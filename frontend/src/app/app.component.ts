@@ -3,7 +3,7 @@ import { Component, ViewChild, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { finalize } from 'rxjs';
 import { ApiService } from './api.service';
-import { DepthBrushSettings, DepthBrushTool, EditorHistoryState, GpuDiagnostics, ParallaxPath, ProjectResponse, SceneLayer, ViewerMode } from './models';
+import { CameraPathState, DepthBrushSettings, DepthBrushTool, EditorHistoryState, GpuDiagnostics, ParallaxPath, ProjectResponse, SceneLayer, ViewerMode } from './models';
 import { ViewerComponent } from './viewer/viewer.component';
 
 @Component({ selector: 'aps-root', standalone: true, imports: [CommonModule, FormsModule, ViewerComponent], templateUrl: './app.component.html', styleUrls: ['./app.component.css', './phase2.css', './depth-editor.css'] })
@@ -15,6 +15,7 @@ export class AppComponent {
   brush: DepthBrushSettings = { tool: 'near', size: 80, strength: .25 };
   editorHistory: EditorHistoryState = { canUndo: false, canRedo: false, modified: false };
   soloLayerId: string | null = null; differenceGain = 8; gpu: GpuDiagnostics | null = null;
+  cameraPath: CameraPathState = {}; cameraPathDuration = 7;
   brushTools: { value: DepthBrushTool; label: string; hint: string }[] = [
     { value: 'near', label: 'Bring closer', hint: 'Lightens the active depth map' },
     { value: 'far', label: 'Push farther', hint: 'Darkens the active depth map' },
@@ -40,8 +41,10 @@ export class AppComponent {
   toggleSolo(layer: SceneLayer): void { this.soloLayerId = this.soloLayerId === layer.id ? null : layer.id; }
   preview(path: ParallaxPath): void { this.viewer?.startParallaxPreview(path); }
   updatePreference(parameter: 'separation' | 'differenceGain', value: number): void { this[parameter] = value; this.savePreferences(); }
-  savePreferences(): void { try { const previous = JSON.parse(localStorage.getItem(this.preferencesKey) ?? '{}'); const layers = this.project ? Object.fromEntries(this.project.scene.layers.map(layer => [layer.id, { visible: layer.visible, opacity: layer.opacity, depth: layer.depth, transform: layer.transform }])) : (previous.layers ?? {}); localStorage.setItem(this.preferencesKey, JSON.stringify({ starSettings: this.starSettings, separation: this.separation, differenceGain: this.differenceGain, brush: this.brush, layers })); } catch { /* localStorage can be unavailable in restricted contexts. */ } }
-  private restorePreferences(): void { try { const raw = localStorage.getItem(this.preferencesKey); if (!raw) return; const saved = JSON.parse(raw); if (saved.starSettings) Object.assign(this.starSettings, saved.starSettings); if (typeof saved.separation === 'number') this.separation = saved.separation; if (typeof saved.differenceGain === 'number') this.differenceGain = saved.differenceGain; if (saved.brush) this.brush = { ...this.brush, ...saved.brush }; } catch { /* Ignore malformed or inaccessible storage. */ } }
+  updateCameraPath(path: CameraPathState): void { this.cameraPath = path; this.savePreferences(); }
+  updatePathDuration(value: number): void { this.cameraPathDuration = value; this.savePreferences(); }
+  savePreferences(): void { try { const previous = JSON.parse(localStorage.getItem(this.preferencesKey) ?? '{}'); const layers = this.project ? Object.fromEntries(this.project.scene.layers.map(layer => [layer.id, { visible: layer.visible, opacity: layer.opacity, depth: layer.depth, transform: layer.transform }])) : (previous.layers ?? {}); localStorage.setItem(this.preferencesKey, JSON.stringify({ starSettings: this.starSettings, separation: this.separation, differenceGain: this.differenceGain, brush: this.brush, cameraPath: this.cameraPath, cameraPathDuration: this.cameraPathDuration, layers })); } catch { /* localStorage can be unavailable in restricted contexts. */ } }
+  private restorePreferences(): void { try { const raw = localStorage.getItem(this.preferencesKey); if (!raw) return; const saved = JSON.parse(raw); if (saved.starSettings) Object.assign(this.starSettings, saved.starSettings); if (typeof saved.separation === 'number') this.separation = saved.separation; if (typeof saved.differenceGain === 'number') this.differenceGain = saved.differenceGain; if (saved.brush) this.brush = { ...this.brush, ...saved.brush }; if (saved.cameraPath) this.cameraPath = saved.cameraPath; if (typeof saved.cameraPathDuration === 'number') this.cameraPathDuration = saved.cameraPathDuration; } catch { /* Ignore malformed or inaccessible storage. */ } }
   private applyLayerPreferences(project: ProjectResponse): void { try { const saved = JSON.parse(localStorage.getItem(this.preferencesKey) ?? '{}').layers ?? {}; for (const layer of project.scene.layers) { const attributes = saved[layer.id]; if (attributes) Object.assign(layer, attributes, { transform: { ...layer.transform, ...attributes.transform, position: { ...layer.transform.position, ...attributes.transform?.position }, scale: { ...layer.transform.scale, ...attributes.transform?.scale } } }); } } catch { /* Keep generated defaults when stored attributes are invalid. */ } }
   trackLayer(_: number, layer: SceneLayer): string { return layer.id; }
 }
