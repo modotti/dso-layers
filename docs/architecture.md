@@ -2,7 +2,7 @@
 
 ## Scope and repository
 
-Phase 2 validates deterministic star detection and artistic depth distribution while retaining the Phase 1 rendering architecture. The repository is split by responsibility:
+The depth-warp experiment validates deterministic star decomposition together with continuous shader deformation of a single starless texture. The repository is split by responsibility:
 
 ```text
 backend/app/           FastAPI transport, image I/O, validation, reconstruction
@@ -88,7 +88,7 @@ Angular standalone UI, FastAPI boundary, aligned-image validation, immutable sou
 
 ### Phase 3 — nebula laboratory
 
-Add a `NebulaDecompositionStrategy` protocol and multiscale, structural, and continuous implementations. Standardize contribution-to-straight-RGBA conversion, expose deterministic parameters/seeds, compare reconstructions, and keep layer count dynamic.
+The current experiment replaces plane decomposition with a smooth artistic depth map derived from broad emission, absorption, and structural cues. The viewer samples this grayscale map in a fragment shader and offsets UVs relative to canonical camera displacement. At the original camera position the offset is zero, preserving the source exactly. Motion is intentionally constrained because the warp cannot synthesize genuinely hidden content.
 
 ### Phase 4 — visual refinement
 

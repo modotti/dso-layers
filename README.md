@@ -1,6 +1,6 @@
 # Astro Parallax Studio
 
-Experimental web-first MVP for validating 2.5D parallax from aligned astrophotography images. Phase 2 imports one starless and one stars image, detects stellar regions, distributes complete profiles across configurable artistic depth planes, and presents them in a Three.js viewer.
+Experimental web-first MVP for validating 2.5D parallax from aligned astrophotography images. The depth-warp experiment keeps starless content in one texture, deforms it continuously from an artistic depth map, and combines it with the successful multi-plane star decomposition.
 
 ## Requirements
 
@@ -42,7 +42,7 @@ cd frontend && npm run build
 
 ## Phase 1 manual test
 
-1. Import aligned PNG or TIFF starless and stars files and select star decomposition settings.
+1. Import aligned PNG or TIFF starless and stars files and configure the star/depth-warp settings.
 2. Confirm a dimension mismatch is rejected with an actionable error.
 3. Click **Build scene**, then switch between 3D, original, and difference views.
 4. Drag to orbit, right-drag to pan, scroll to zoom, and use the automated parallax preview.
@@ -53,7 +53,8 @@ Architecture, contracts, conventions, risks, and the phased plan are in [docs/ar
 
 ## Current limits
 
-- Phase 2 decomposes only the stars image. Nebula decomposition begins in Phase 3.
+- Starless is never split into repeated planes in this experiment; its warp is exactly zero at the canonical camera position.
+- The generated depth map is artistic and does not represent physical astronomical distance.
 - PNG color metadata is reported when available. TIFF ICC/profile interpretation is reported as unsupported rather than guessed.
 - Display previews are 8-bit sRGB PNGs. Original uploaded bytes and decoded high-bit-depth arrays remain on the backend for the process lifetime.
 - Projects are memory-backed and disappear when FastAPI restarts.

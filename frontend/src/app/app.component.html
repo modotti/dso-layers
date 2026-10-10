@@ -1,5 +1,5 @@
 <header class="topbar">
-  <div class="brand"><span class="mark">✦</span><div><strong>Astro Parallax</strong><small>Experimental studio · Phase 2</small></div></div>
+  <div class="brand"><span class="mark">✦</span><div><strong>Astro Parallax</strong><small>Depth warp experiment</small></div></div>
   <div class="imports">
     <label class="file"><span>Starless</span><b>{{ starless?.name || 'Choose image' }}</b><input type="file" accept=".png,.tif,.tiff" (change)="choose($event,'starless')"></label>
     <label class="file"><span>Stars</span><b>{{ stars?.name || 'Choose image' }}</b><input type="file" accept=".png,.tif,.tiff" (change)="choose($event,'stars')"></label>
@@ -21,6 +21,7 @@
       <div class="panel-head"><div><small>SCENE</small><h2>{{ project.scene.name }}</h2></div><span>{{ project.scene.source.width }} × {{ project.scene.source.height }}</span></div>
       <section class="detection"><strong>{{ project.scene.processing.detectedStars }}</strong><span>stellar regions detected</span><small>Visual depth heuristic — not astronomical distance</small></section>
       <section class="global"><label><span>Global separation <b>{{ separation | number:'1.1-1' }}×</b></span><input type="range" min="0" max="3" step="0.1" [(ngModel)]="separation"></label></section>
+      <section class="global"><label><span>Nebula warp <b>{{ (group('nebula')[0].warp_strength || 0) | number:'1.2-2' }}</b></span><input type="range" min="0" max="0.5" step="0.01" [ngModel]="group('nebula')[0].warp_strength" (ngModelChange)="updateWarp($event)"></label></section>
       <ng-container *ngFor="let type of ['nebula','stars']">
         <section class="layer-group">
           <h3>{{ type === 'nebula' ? 'Nebula layers' : 'Star layers' }} <span>{{ group($any(type)).length }}</span></h3>
@@ -41,8 +42,12 @@
 </main>
 
 <details class="processing-settings" [open]="!project">
-  <summary>Star decomposition settings</summary>
+  <summary>Depth warp settings</summary>
   <div>
+    <label>Warp strength<input type="range" min="0" max="0.5" step="0.01" [(ngModel)]="starSettings.warpStrength"><b>{{ starSettings.warpStrength }}</b></label>
+    <label>Map smoothing<input type="range" min="2" max="80" step="2" [(ngModel)]="starSettings.depthSmoothing"><b>{{ starSettings.depthSmoothing }}</b></label>
+    <label>Absorption cue<input type="range" min="0" max="1" step="0.05" [(ngModel)]="starSettings.absorptionStrength"><b>{{ starSettings.absorptionStrength }}</b></label>
+    <label class="check"><input type="checkbox" [(ngModel)]="starSettings.invertDepth"> Invert depth</label>
     <label>Layers<input type="number" min="2" max="8" [(ngModel)]="starSettings.layerCount"></label>
     <label>Depth assignment<select [(ngModel)]="starSettings.distribution"><option value="balanced">Balanced</option><option value="brightness">Brightness</option><option value="size">Apparent size</option></select></label>
     <label>Sensitivity<input type="range" min="1" max="8" step="0.25" [(ngModel)]="starSettings.sensitivity"><b>{{ starSettings.sensitivity }}</b></label>

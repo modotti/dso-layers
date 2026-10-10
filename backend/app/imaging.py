@@ -131,3 +131,9 @@ def png_bytes(rgb_or_rgba_linear: np.ndarray) -> bytes:
     output = BytesIO()
     Image.fromarray(encoded, mode=mode).save(output, format="PNG", optimize=True)
     return output.getvalue()
+
+
+def depth_png_bytes(depth: np.ndarray) -> bytes:
+    output = BytesIO()
+    Image.fromarray(np.round(np.clip(depth, 0, 1) * 255).astype(np.uint8), mode="L").save(output, format="PNG", optimize=True)
+    return output.getvalue()

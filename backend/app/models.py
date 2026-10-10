@@ -51,6 +51,8 @@ class SceneLayer(BaseModel):
     name: str
     type: Literal["nebula", "stars"]
     texture_url: str
+    depth_texture_url: str | None = None
+    warp_strength: float = 0.0
     depth: float
     order: int
     visible: bool = True
@@ -59,8 +61,8 @@ class SceneLayer(BaseModel):
 
 
 class ProcessingMetadata(BaseModel):
-    phase: Literal[2] = 2
-    algorithm: Literal["star-visual-heuristics-v1"] = "star-visual-heuristics-v1"
+    phase: Literal[3] = 3
+    algorithm: str = "depth-warp-v1+star-visual-heuristics-v1"
     deterministic: bool = True
     parameters: dict[str, str | int | float | bool] = Field(default_factory=dict)
     detected_stars: int = Field(0, alias="detectedStars")

@@ -12,7 +12,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   @ViewChild('host', { static: true }) host!: ElementRef<HTMLDivElement>;
   private readonly zone = inject(NgZone);
   private renderer?: THREE.WebGLRenderer; private world = new THREE.Scene(); private camera?: THREE.PerspectiveCamera; private controls?: OrbitControls;
-  private meshes = new Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>>(); private comparison?: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
+  private meshes = new Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.Material>>(); private comparison?: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   private frame = 0; private observer?: ResizeObserver; private previewStarted = 0;
 
   ngAfterViewInit(): void { this.setup(); if (this.scene) void this.loadScene(); }
@@ -40,10 +40,39 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     const loader = new THREE.TextureLoader();
     await Promise.all(this.scene.layers.map(async layer => {
       const texture = await loader.loadAsync(layer.texture_url); texture.colorSpace = THREE.SRGBColorSpace; texture.flipY = true;
-      const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, premultipliedAlpha: false, depthWrite: false, side: THREE.DoubleSide, opacity: layer.opacity });
+      let material: THREE.Material;
+      if (layer.depth_texture_url) {
+        const depthTexture = await loader.loadAsync(layer.depth_texture_url); depthTexture.colorSpace = THREE.NoColorSpace; depthTexture.flipY = true;
+        material = this.createWarpMaterial(texture, depthTexture, layer.opacity, layer.warp_strength ?? 0);
+      } else {
+        material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, premultipliedAlpha: false, depthWrite: false, side: THREE.DoubleSide, opacity: layer.opacity });
+      }
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material); mesh.renderOrder = layer.order; this.world.add(mesh); this.meshes.set(layer.id, mesh);
     }));
     if (this.comparisonUrl) await this.loadComparison(); this.applyLayers(); this.applyMode();
+  }
+  private createWarpMaterial(texture: THREE.Texture, depthTexture: THREE.Texture, opacity: number, strength: number): THREE.ShaderMaterial {
+    return new THREE.ShaderMaterial({
+      uniforms: { map: { value: texture }, depthMap: { value: depthTexture }, viewOffset: { value: new THREE.Vector2() }, strength: { value: strength }, opacity: { value: opacity } },
+      vertexShader: `varying vec2 vUv;
+        void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: `uniform sampler2D map;
+        uniform sampler2D depthMap;
+        uniform vec2 viewOffset;
+        uniform float strength;
+        uniform float opacity;
+        varying vec2 vUv;
+        void main() {
+          float depth = texture2D(depthMap, vUv).r - 0.5;
+          vec2 offset = vec2(-viewOffset.x, viewOffset.y) * depth * strength;
+          vec2 warpedUv = clamp(vUv + offset, vec2(0.001), vec2(0.999));
+          vec4 color = texture2D(map, warpedUv);
+          gl_FragColor = vec4(color.rgb, color.a * opacity);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+        }`,
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    });
   }
   private async loadComparison(): Promise<void> {
     if (!this.comparisonUrl) return; if (this.comparison) { this.world.remove(this.comparison); this.comparison.geometry.dispose(); this.comparison.material.map?.dispose(); this.comparison.material.dispose(); }
@@ -54,8 +83,8 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     if (!this.scene || !this.camera) return; const distance = this.scene.camera.position[2] - depth; const height = 2 * distance * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)); const width = height * this.scene.source.width / this.scene.source.height;
     mesh.position.set(position.x, position.y, depth + position.z); mesh.scale.set(width * scale.x, height * scale.y, scale.z);
   }
-  private applyLayers(): void { if (!this.scene) return; for (const layer of this.scene.layers) { const mesh = this.meshes.get(layer.id); if (!mesh) continue; mesh.visible = this.mode === '3d' && layer.visible; mesh.material.opacity = layer.opacity; this.sizePlane(mesh, layer.depth * this.separation, layer.transform.position, layer.transform.scale); } }
+  private applyLayers(): void { if (!this.scene) return; for (const layer of this.scene.layers) { const mesh = this.meshes.get(layer.id); if (!mesh) continue; mesh.visible = this.mode === '3d' && layer.visible; if (mesh.material instanceof THREE.ShaderMaterial) { mesh.material.uniforms['opacity'].value = layer.opacity; mesh.material.uniforms['strength'].value = layer.warp_strength ?? 0; } else if (mesh.material instanceof THREE.MeshBasicMaterial) { mesh.material.opacity = layer.opacity; } this.sizePlane(mesh, layer.depth * this.separation, layer.transform.position, layer.transform.scale); } }
   private applyMode(): void { for (const mesh of this.meshes.values()) mesh.visible = this.mode === '3d' && (this.scene?.layers.find(l => l.id === [...this.meshes.entries()].find(([,m]) => m === mesh)?.[0])?.visible ?? true); if (this.comparison) this.comparison.visible = this.mode !== '3d'; }
-  private animate = (): void => { this.frame = requestAnimationFrame(this.animate); if (this.previewStarted && this.camera && this.controls) { const elapsed = performance.now() - this.previewStarted; const duration = 4200; if (elapsed < duration) { const phase = elapsed / duration; this.camera.position.x = Math.sin(phase * Math.PI * 2) * .34 * Math.sin(phase * Math.PI); this.controls.update(); } else { this.previewStarted = 0; this.resetCamera(); } } this.controls?.update(); if (this.renderer && this.camera) this.renderer.render(this.world, this.camera); };
-  private disposeMeshes(): void { for (const mesh of this.meshes.values()) { this.world.remove(mesh); mesh.geometry.dispose(); mesh.material.map?.dispose(); mesh.material.dispose(); } this.meshes.clear(); }
+  private animate = (): void => { this.frame = requestAnimationFrame(this.animate); if (this.previewStarted && this.camera && this.controls) { const elapsed = performance.now() - this.previewStarted; const duration = 4200; if (elapsed < duration) { const phase = elapsed / duration; this.camera.position.x = Math.sin(phase * Math.PI * 2) * .34 * Math.sin(phase * Math.PI); this.controls.update(); } else { this.previewStarted = 0; this.resetCamera(); } } this.controls?.update(); if (this.camera && this.scene) { const origin = this.scene.camera.position; for (const mesh of this.meshes.values()) if (mesh.material instanceof THREE.ShaderMaterial) mesh.material.uniforms['viewOffset'].value.set(this.camera.position.x - origin[0], this.camera.position.y - origin[1]); } if (this.renderer && this.camera) this.renderer.render(this.world, this.camera); };
+  private disposeMeshes(): void { for (const mesh of this.meshes.values()) { this.world.remove(mesh); mesh.geometry.dispose(); if (mesh.material instanceof THREE.ShaderMaterial) { (mesh.material.uniforms['map'].value as THREE.Texture).dispose(); (mesh.material.uniforms['depthMap'].value as THREE.Texture).dispose(); } else if (mesh.material instanceof THREE.MeshBasicMaterial) mesh.material.map?.dispose(); mesh.material.dispose(); } this.meshes.clear(); }
 }
