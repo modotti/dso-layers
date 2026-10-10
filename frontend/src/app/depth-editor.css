@@ -40,7 +40,10 @@
 .camera-keyframes .mark-end { color: #ffb58f; border-color: #874d35; }
 .camera-keyframes .play-path { color: #d5caff; border-color: #6555bd; background: #29204f; }
 .camera-keyframes button.saved { box-shadow: inset 0 0 0 1px currentColor, 0 0 10px #7966df44; }
+.camera-keyframes .jump-buttons { grid-template-columns: 1fr 1fr; margin-top: 6px; }
+.camera-keyframes .jump-buttons button:first-child { color: #9deace; border-color: #286c58; }
+.camera-keyframes .jump-buttons button:last-child { color: #ffc7aa; border-color: #874d35; }
 .camera-keyframes label { display: flex; align-items: center; gap: 9px; margin-top: 8px; color: #949daf; font-size: 10px; }
 .camera-keyframes label span { min-width: 76px; display: flex; justify-content: space-between; }
 .camera-keyframes label input { margin: 0; }
-.depth-editor { bottom: 145px; }
+.depth-editor { bottom: 182px; }
