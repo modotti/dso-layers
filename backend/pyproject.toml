@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "astro-parallax-backend"
 version = "0.1.0"
-description = "Local image-processing API for Astro Parallax Studio"
+description = "Local image-processing API for Paralastro"
 requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.115,<1",

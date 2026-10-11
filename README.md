@@ -1,4 +1,4 @@
-# Astro Parallax Studio
+# Paralastro 0.5
 
 Experimental web-first MVP for validating 2.5D parallax from aligned astrophotography images. The depth-warp experiment keeps starless content in one texture, deforms it continuously from an artistic depth map, and combines it with the successful multi-plane star decomposition.
 

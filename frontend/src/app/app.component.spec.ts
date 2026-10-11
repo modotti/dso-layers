@@ -7,6 +7,8 @@ describe('AppComponent', () => {
   it('starts with the import workflow', () => {
     const fixture = TestBed.createComponent(AppComponent); fixture.detectChanges();
     expect(fixture.nativeElement.textContent).toContain('Build scene');
+    expect(fixture.nativeElement.textContent).toContain('Paralastro 0.5');
+    expect(fixture.nativeElement.textContent).toContain('Bring your astrophotography to life through motion.');
     expect(fixture.nativeElement.textContent).toContain('Reveal the space inside your image');
   });
   it('restores saved viewer preferences', () => {

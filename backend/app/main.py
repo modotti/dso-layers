@@ -32,7 +32,7 @@ VIDEO_EFFECTS = {
 }
 logger = logging.getLogger("uvicorn.error").getChild("processing")
 store = MemoryProjectStore()
-app = FastAPI(title="Astro Parallax Studio API", version="1.0.0")
+app = FastAPI(title="Paralastro API", version="0.5.0")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:4200"], allow_methods=["*"], allow_headers=["*"])
 
 

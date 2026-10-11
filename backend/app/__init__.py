@@ -1,1 +1,1 @@
-"""Astro Parallax Studio backend."""
+"""Paralastro backend."""
