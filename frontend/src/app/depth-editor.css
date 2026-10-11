@@ -41,7 +41,7 @@
 .camera-keyframes .play-path { color: #d5caff; border-color: #6555bd; background: #29204f; }
 .camera-keyframes button.saved { box-shadow: inset 0 0 0 1px currentColor, 0 0 10px #7966df44; }
 .camera-keyframes .movement-header { display: flex; align-items: flex-start; gap: 7px; margin-bottom: 7px; }
-.camera-keyframes .movement-tabs { display: flex; flex: 1; min-width: 0; gap: 5px; overflow-x: auto; }
+.camera-keyframes .movement-tabs { display: flex; flex: 1; flex-wrap: wrap; min-width: 0; gap: 5px; }
 .camera-keyframes .movement-tabs button { flex: 0 0 auto; min-width: 62px; color: #929cb0; }
 .camera-keyframes .movement-tabs button.active { border-color: #8d7bed; color: #e0d9ff; background: #342b64; }
 .camera-keyframes .movement-tabs .add-movement { min-width: 32px; color: #91dfc0; }
