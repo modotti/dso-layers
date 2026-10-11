@@ -202,7 +202,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
           float sampledDepth = mix(texture2D(depthMap, vUv).r, texture2D(invertedDepthMap, vUv).r, invertDepth);
           float depth = sampledDepth - 0.5;
           float confidence = mix(1.0, texture2D(confidenceMap, vUv).r, confidenceAmount);
-          vec2 broadOffset = vec2(-viewOffset.x, viewOffset.y) * depth * strength * confidence;
+          vec2 broadOffset = viewOffset * depth * strength * confidence;
           vec2 broadUv = 1.0 - abs(mod(vUv + broadOffset, 2.0) - 1.0);
           vec2 fineUv = 1.0 - abs(mod(vUv + broadOffset * fineWarpRatio, 2.0) - 1.0);
           vec4 broadColor = softSample(broadUv);
