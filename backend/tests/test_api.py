@@ -118,6 +118,10 @@ def test_webm_video_can_be_converted_to_mp4(monkeypatch):
     monkeypatch.setattr("app.main.shutil.which", lambda _: "/usr/local/bin/ffmpeg")
 
     def convert(command, **_):
+        assert command[command.index("-crf") + 1] == "14"
+        assert command[command.index("-pix_fmt") + 1] == "yuv420p"
+        assert command[command.index("-x264-params") + 1] == "aq-mode=3"
+        assert command[command.index("-color_primaries") + 1] == "bt709"
         Path(command[-1]).write_bytes(b"converted-mp4")
         return SimpleNamespace(returncode=0, stderr="")
 

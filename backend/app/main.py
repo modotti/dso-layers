@@ -23,6 +23,17 @@ from .store import MediaAsset, MemoryProjectStore
 
 MAX_UPLOAD_BYTES = 256 * 1024 * 1024
 MAX_VIDEO_UPLOAD_BYTES = 512 * 1024 * 1024
+MP4_ENCODING_OPTIONS = [
+    "-c:v", "libx264",
+    "-preset", "medium",
+    "-crf", "14",
+    "-pix_fmt", "yuv420p",
+    "-x264-params", "aq-mode=3",
+    "-color_primaries", "bt709",
+    "-color_trc", "bt709",
+    "-colorspace", "bt709",
+    "-movflags", "+faststart",
+]
 VIDEO_EFFECTS = {
     "soft-reflections": {
         "path": Path(__file__).resolve().parents[1] / "assets" / "video-effects" / "soft-reflections.mp4",
@@ -83,10 +94,10 @@ async def convert_video(
         output_path = Path(directory) / "output.mp4"
         input_path.write_bytes(payload)
         if effect is None:
-            command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(input_path), "-an", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(output_path)]
+            command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(input_path), "-an", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", *MP4_ENCODING_OPTIONS, str(output_path)]
         else:
             filter_graph = f"[1:v][0:v]scale2ref=w=rw:h=rh[effect][base];[base][effect]blend=all_mode={effect['blend_mode']}:all_opacity={effect['opacity']}:shortest=1[mixed];[mixed]scale=trunc(iw/2)*2:trunc(ih/2)*2[v]"
-            command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(input_path), "-stream_loop", "-1", "-i", str(effect["path"]), "-filter_complex", filter_graph, "-map", "[v]", "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(output_path)]
+            command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(input_path), "-stream_loop", "-1", "-i", str(effect["path"]), "-filter_complex", filter_graph, "-map", "[v]", "-an", *MP4_ENCODING_OPTIONS, str(output_path)]
         result = await asyncio.to_thread(subprocess.run, command, capture_output=True, text=True, timeout=300, check=False)
         if result.returncode != 0 or not output_path.exists():
             logger.error("[%s] MP4 conversion failed code=%d error=%s", conversion_id, result.returncode, result.stderr[-1000:])
