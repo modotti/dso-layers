@@ -7,9 +7,10 @@ import { ProjectResponse } from './models';
 export class ApiService {
   private readonly http = inject(HttpClient);
 
-  createProject(starless: File, stars: File, settings: { layerCount: number; distribution: string; sensitivity: number; backgroundMode: string; warpStrength: number; depthSmoothing: number; absorptionStrength: number; invertDepth: boolean; fineWarpRatio: number; confidenceAmount: number }): Observable<ProjectResponse> {
+  createProject(starless: File, stars: File, depthMap: File | null, settings: { layerCount: number; distribution: string; sensitivity: number; backgroundMode: string; warpStrength: number; depthSmoothing: number; absorptionStrength: number; invertDepth: boolean; fineWarpRatio: number; confidenceAmount: number }): Observable<ProjectResponse> {
     const form = new FormData();
     form.append('starless', starless); form.append('stars', stars);
+    if (depthMap) form.append('depth_map', depthMap);
     form.append('star_layer_count', String(settings.layerCount));
     form.append('star_distribution', settings.distribution);
     form.append('star_sensitivity', String(settings.sensitivity));

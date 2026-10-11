@@ -16,6 +16,12 @@ def png(width: int, height: int, color: tuple[int, int, int]) -> bytes:
     return buffer.getvalue()
 
 
+def grayscale_png(width: int, height: int, value: int) -> bytes:
+    buffer = BytesIO()
+    Image.new("L", (width, height), value).save(buffer, "PNG")
+    return buffer.getvalue()
+
+
 def test_project_returns_versioned_scene_and_media():
     response = client.post("/api/v1/projects", files={"starless": ("base.png", png(4, 3, (10, 20, 30)), "image/png"), "stars": ("stars.png", png(4, 3, (2, 3, 4)), "image/png")})
     assert response.status_code == 200
@@ -39,6 +45,36 @@ def test_dimension_mismatch_is_actionable():
     response = client.post("/api/v1/projects", files={"starless": ("base.png", png(4, 3, (0, 0, 0)), "image/png"), "stars": ("stars.png", png(5, 3, (0, 0, 0)), "image/png")})
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "dimension_mismatch"
+
+
+def test_custom_depth_map_is_preserved_and_used():
+    response = client.post(
+        "/api/v1/projects",
+        files={
+            "starless": ("base.png", png(4, 3, (10, 20, 30)), "image/png"),
+            "stars": ("stars.png", png(4, 3, (0, 0, 0)), "image/png"),
+            "depth_map": ("depth.png", grayscale_png(4, 3, 128), "image/png"),
+        },
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["scene"]["processing"]["parameters"]["customDepthMap"] is True
+    depth_url = body["scene"]["layers"][0]["depth_texture_url"]
+    depth_image = Image.open(BytesIO(client.get(depth_url).content))
+    assert depth_image.getpixel((0, 0)) == 128
+
+
+def test_custom_depth_map_dimension_mismatch_is_actionable():
+    response = client.post(
+        "/api/v1/projects",
+        files={
+            "starless": ("base.png", png(4, 3, (0, 0, 0)), "image/png"),
+            "stars": ("stars.png", png(4, 3, (0, 0, 0)), "image/png"),
+            "depth_map": ("depth.png", grayscale_png(5, 3, 128), "image/png"),
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "depth_dimension_mismatch"
 
 
 def test_star_layer_count_and_strategy_are_configurable():

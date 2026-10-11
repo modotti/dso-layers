@@ -2,6 +2,7 @@
   border-color: #9a87ff;
   background: #342b64;
 }
+.imports .clear-depth { margin-left: -7px; padding: 8px 10px; color: #9da6ba; }
 
 .depth-editor {
   position: absolute;

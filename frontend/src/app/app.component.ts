@@ -9,7 +9,7 @@ import { ViewerComponent } from './viewer/viewer.component';
 export class AppComponent implements OnDestroy {
   @ViewChild(ViewerComponent) viewer?: ViewerComponent;
   private readonly api = inject(ApiService);
-  starless: File | null = null; stars: File | null = null; project: ProjectResponse | null = null; busy = false; error = ''; mode: ViewerMode = '3d'; separation = 1;
+  starless: File | null = null; stars: File | null = null; depthMap: File | null = null; project: ProjectResponse | null = null; busy = false; error = ''; mode: ViewerMode = '3d'; separation = 1;
   editorOpen = false;
   brush: DepthBrushSettings = { tool: 'near', size: 80, strength: .25 };
   lighting: LightingSettings = { intensity: .06, relief: 1.2, direction: 135 };
@@ -40,13 +40,13 @@ export class AppComponent implements OnDestroy {
   get cameraPathEasing(): CameraPathEasing { return this.activeMovement.easing; }
   get canPlaySequence(): boolean { return this.cameraMovements.length > 0 && this.cameraMovements.every(movement => !!movement.path.start && !!movement.path.end); }
   get canLinkActiveMovement(): boolean { return this.activeMovementIndex > 0 && !!this.cameraMovements[this.activeMovementIndex - 1]?.path.end; }
-  choose(event: Event, role: 'starless' | 'stars'): void { const file = (event.target as HTMLInputElement).files?.[0] ?? null; this[role] = file; this.error = ''; }
-  generate(): void { if (!this.starless || !this.stars || this.busy) return; this.savePreferences(); this.busy = true; this.error = ''; this.startLoadingProgress(); this.api.createProject(this.starless, this.stars, this.starSettings).subscribe({ next: project => { this.stopLoadingProgress(); this.setLoadingProgress(100); window.setTimeout(() => { const previousProjectId = this.project?.projectId; this.applyLayerPreferences(project); this.project = project; this.mode = '3d'; this.soloLayerId = null; this.busy = false; if (previousProjectId && previousProjectId !== project.projectId) this.api.deleteProject(previousProjectId); }, 250); }, error: (error: Error) => { this.stopLoadingProgress(); this.busy = false; this.error = error.message; } }); }
+  choose(event: Event, role: 'starless' | 'stars' | 'depthMap'): void { const file = (event.target as HTMLInputElement).files?.[0] ?? null; this[role] = file; this.error = ''; }
+  generate(): void { if (!this.starless || !this.stars || this.busy) return; this.savePreferences(); this.busy = true; this.error = ''; this.startLoadingProgress(); this.api.createProject(this.starless, this.stars, this.depthMap, this.starSettings).subscribe({ next: project => { this.stopLoadingProgress(); this.setLoadingProgress(100); window.setTimeout(() => { const previousProjectId = this.project?.projectId; this.applyLayerPreferences(project); this.project = project; this.mode = '3d'; this.soloLayerId = null; this.busy = false; if (previousProjectId && previousProjectId !== project.projectId) this.api.deleteProject(previousProjectId); }, 250); }, error: (error: Error) => { this.stopLoadingProgress(); this.busy = false; this.error = error.message; } }); }
   private startLoadingProgress(): void { this.stopLoadingProgress(); this.setLoadingProgress(4); this.loadingTimer = window.setInterval(() => { const increment = this.loadingProgress < 28 ? 2.2 : this.loadingProgress < 56 ? 1.1 : this.loadingProgress < 78 ? .55 : .18; this.setLoadingProgress(Math.min(94, this.loadingProgress + increment)); }, 220); }
   private stopLoadingProgress(): void { if (this.loadingTimer !== undefined) { window.clearInterval(this.loadingTimer); this.loadingTimer = undefined; } }
   private setLoadingProgress(progress: number): void { this.loadingProgress = progress; const stages = [
     { at: 0, title: 'Reading source images', detail: 'Uploading and validating dimensions and color data…' },
-    { at: 18, title: 'Building nebula depth', detail: 'Analyzing emission, absorption, and broad structures…' },
+    { at: 18, title: this.depthMap ? 'Loading custom depth map' : 'Building nebula depth', detail: this.depthMap ? 'Validating dimensions and preserving grayscale depth values…' : 'Analyzing emission, absorption, and broad structures…' },
     { at: 40, title: 'Detecting stellar profiles', detail: 'Locating and measuring bright stellar regions…' },
     { at: 62, title: 'Assigning depth layers', detail: 'Distributing stars and preparing the 3D scene…' },
     { at: 78, title: 'Rendering previews', detail: 'Encoding textures and optimized GPU assets…' },

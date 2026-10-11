@@ -3,6 +3,8 @@
   <div class="imports">
     <label class="file"><span>Starless</span><b>{{ starless?.name || 'Choose image' }}</b><input type="file" accept=".png,.tif,.tiff" (change)="choose($event,'starless')"></label>
     <label class="file"><span>Stars</span><b>{{ stars?.name || 'Choose image' }}</b><input type="file" accept=".png,.tif,.tiff" (change)="choose($event,'stars')"></label>
+    <label class="file optional"><span>Depth map · optional</span><b>{{ depthMap?.name || 'Automatic' }}</b><input #depthInput type="file" accept=".png,.tif,.tiff" (change)="choose($event,'depthMap')"></label>
+    <button class="clear-depth" *ngIf="depthMap" title="Use automatic depth map" (click)="depthMap=null; depthInput.value=''">×</button>
     <button class="primary" [disabled]="!starless || !stars || busy" (click)="generate()">{{ busy ? loadingTitle : 'Build scene' }}</button>
   </div>
 </header>

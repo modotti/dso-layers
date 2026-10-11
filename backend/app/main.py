@@ -15,10 +15,10 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 
-from .imaging import ImageValidationError, depth_png_bytes, load_image, metrics, png_bytes, preview_size, resize_preview, source_over, stars_to_straight_rgba, validate_pair
+from .imaging import ImageValidationError, depth_png_bytes, linear_to_srgb, load_image, metrics, png_bytes, preview_size, resize_preview, source_over, stars_to_straight_rgba, validate_pair
 from .models import ComparisonUrls, ImageMetadata, MetricGroups, ProcessingMetadata, ProjectResponse, ReconstructionMetrics, SceneDocument, SceneLayer
 from .processing.stars import RankedVisualDepthStrategy, StarLayerGenerator
-from .processing.depth import create_artistic_depth_map
+from .processing.depth import DepthWarpResult, create_artistic_depth_map
 from .store import MediaAsset, MemoryProjectStore
 
 MAX_UPLOAD_BYTES = 256 * 1024 * 1024
@@ -100,6 +100,7 @@ async def convert_video(
 async def create_project(
     starless: UploadFile = File(...),
     stars: UploadFile = File(...),
+    depth_map: UploadFile | None = File(None),
     star_layer_count: int = Form(3, ge=2, le=8),
     star_distribution: str = Form("balanced", pattern="^(balanced|brightness|size)$"),
     star_sensitivity: float = Form(3.0, ge=1.0, le=8.0),
@@ -122,15 +123,25 @@ async def create_project(
         logger.info("[%s] %s step=%.2fs total=%.2fs%s", project_id, message, now - previous_checkpoint, now - started_at, f" {suffix}" if suffix else "")
         previous_checkpoint = now
 
-    checkpoint("request received", starless=starless.filename or "starless", stars=stars.filename or "stars")
+    checkpoint("request received", starless=starless.filename or "starless", stars=stars.filename or "stars", depth_map=depth_map.filename if depth_map else "automatic")
     starless_payload, stars_payload = await _read_upload(starless), await _read_upload(stars)
     checkpoint("uploads read", starless_bytes=len(starless_payload), stars_bytes=len(stars_payload))
     base, stellar = load_image(starless.filename or "starless", starless_payload), load_image(stars.filename or "stars", stars_payload)
     validate_pair(base, stellar)
     checkpoint("images decoded and validated", width=base.width, height=base.height)
-    checkpoint("generating nebula depth map")
-    depth_result = create_artistic_depth_map(base.rgb_linear, smoothing=nebula_depth_smoothing, absorption_strength=nebula_absorption_strength, invert=False)
-    checkpoint("nebula depth map generated")
+    if depth_map is not None:
+        checkpoint("loading custom nebula depth map")
+        custom_depth = load_image(depth_map.filename or "depth-map.png", await _read_upload(depth_map))
+        if (custom_depth.width, custom_depth.height) != (base.width, base.height):
+            raise ImageValidationError("depth_dimension_mismatch", "The custom depth map must have the same dimensions as the starless image.", {"starless": [base.width, base.height], "depthMap": [custom_depth.width, custom_depth.height]})
+        display_values = linear_to_srgb(custom_depth.rgb_linear)
+        depth_values = np.dot(display_values[..., :3], np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)).astype(np.float32)
+        depth_result = DepthWarpResult(np.clip(depth_values, 0, 1), np.ones_like(depth_values, dtype=np.float32), {"smoothing": 0.0, "absorptionStrength": 0.0, "invert": False, "customDepthMap": True})
+        checkpoint("custom nebula depth map loaded", width=custom_depth.width, height=custom_depth.height, bit_depth=custom_depth.bit_depth)
+    else:
+        checkpoint("generating nebula depth map")
+        depth_result = create_artistic_depth_map(base.rgb_linear, smoothing=nebula_depth_smoothing, absorption_strength=nebula_absorption_strength, invert=False)
+        checkpoint("nebula depth map generated")
     checkpoint("detecting and separating stars", layers=star_layer_count)
     star_result = StarLayerGenerator().process(
         stellar.rgb_linear,

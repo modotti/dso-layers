@@ -47,7 +47,7 @@ cd frontend && npm run build
 
 ## Phase 1 manual test
 
-1. Import aligned PNG or TIFF starless and stars files and configure the star/depth-warp settings.
+1. Import aligned PNG or TIFF starless and stars files. Optionally provide a same-size grayscale depth map, where white is near and black is far; otherwise Paralastro generates one automatically.
 2. Confirm a dimension mismatch is rejected with an actionable error.
 3. Click **Build scene**, then switch between 3D, original, and difference views.
 4. Drag to orbit, right-drag to pan, scroll to zoom, and compare the horizontal, vertical, and orbit preview paths.
@@ -60,7 +60,7 @@ Architecture, contracts, conventions, risks, and the phased plan are in [docs/ar
 ## Current limits
 
 - Starless is never split into repeated planes in this experiment; its warp is exactly zero at the canonical camera position.
-- The generated depth map is artistic and does not represent physical astronomical distance. A confidence map stabilizes ambiguous/high-frequency regions, while broad nebulosity and fine detail receive different motion strengths.
+- The automatically generated depth map is artistic and does not represent physical astronomical distance. A confidence map stabilizes ambiguous/high-frequency regions, while broad nebulosity and fine detail receive different motion strengths. Custom depth maps start with a neutral confidence map and remain editable in the browser.
 - PNG color metadata is reported when available. TIFF ICC/profile interpretation is reported as unsupported rather than guessed.
 - Display previews are bounded 8-bit sRGB PNGs (2048 px maximum edge). Original uploaded bytes and decoded high-bit-depth arrays remain on the backend for the process lifetime, and full-resolution arrays drive metrics.
 - Projects are memory-backed and disappear when FastAPI restarts.
