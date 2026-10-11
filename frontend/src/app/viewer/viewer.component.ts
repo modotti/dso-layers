@@ -87,6 +87,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     this.exportPixelRatio = this.renderer.getPixelRatio(); this.exportFov = this.camera.fov; this.renderer.setDrawingBufferSize(this.videoExport.width, this.videoExport.height, 1);
     const frameX = (viewportBounds.width - this.exportFrameWidth) / 2; const frameY = (viewportBounds.height - this.exportFrameHeight) / 2; this.camera.fov = this.exportFov; this.camera.aspect = viewportBounds.width / Math.max(1, viewportBounds.height); this.camera.setViewOffset(viewportBounds.width, viewportBounds.height, frameX, frameY, this.exportFrameWidth, this.exportFrameHeight); this.camera.updateProjectionMatrix();
     const firstPose = movements[0].path.start!; this.camera.position.fromArray(firstPose.position); this.controls.target.fromArray(firstPose.target); this.activeCameraRoll = firstPose.roll ?? 0; this.controls.enabled = false; this.controls.update(); this.applyCameraRoll();
+    this.setVideoDithering(true); this.renderer.render(this.world, this.camera);
     try {
       const stream = captureStream(this.videoExport.fps); const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: videoCaptureBitrate(this.videoExport) }); this.exportRecorder = recorder;
       recorder.ondataavailable = event => { if (event.data.size) this.exportChunks.push(event.data); };
@@ -99,10 +100,11 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   private setPlaybackMode(active: boolean, notify = true): void { if (notify) this.zone.run(() => this.playbackState.emit(active)); }
   private applyCameraRoll(): void { if (this.camera && this.activeCameraRoll) this.camera.rotateZ(THREE.MathUtils.degToRad(this.activeCameraRoll)); }
   private finishVideoRecording(): void { const recorder = this.exportRecorder; if (!recorder || recorder.state === 'inactive') { this.restoreAfterVideoExport(this.exportError || 'The browser stopped recording unexpectedly.'); return; } recorder.stop(); window.clearTimeout(this.exportStopFallback); this.exportStopFallback = window.setTimeout(() => { if (this.exporting) this.restoreAfterVideoExport('The browser did not finalize the video file.'); }, 2000); }
-  private restoreRendererBehindCover(): void { if (!this.renderer || !this.camera || !this.controls) return; const bounds = this.host.nativeElement.getBoundingClientRect(); this.renderer.setPixelRatio(this.exportPixelRatio); this.renderer.setSize(Math.round(bounds.width), Math.round(bounds.height), false); this.camera.fov = this.exportFov; this.camera.aspect = bounds.width / Math.max(1, bounds.height); this.camera.clearViewOffset(); if (this.exportRestorePose) { this.camera.position.fromArray(this.exportRestorePose.position); this.controls.target.fromArray(this.exportRestorePose.target); this.activeCameraRoll = this.exportRestorePose.roll ?? 0; } this.camera.updateProjectionMatrix(); this.controls.update(); this.applyCameraRoll(); }
-  private restoreAfterVideoExport(error?: string): void { if (!this.exporting) return; window.clearTimeout(this.exportStopFallback); window.clearTimeout(this.exportWatchdog); this.exportStopFallback = this.exportWatchdog = undefined; const renderer = this.renderer; const camera = this.camera; const controls = this.controls; this.exportRecorder = undefined; if (renderer) { renderer.domElement.style.opacity = '1'; renderer.setPixelRatio(this.exportPixelRatio); } if (camera && controls) { camera.fov = this.exportFov; if (this.exportRestorePose) { camera.position.fromArray(this.exportRestorePose.position); controls.target.fromArray(this.exportRestorePose.target); this.activeCameraRoll = this.exportRestorePose.roll ?? 0; } controls.enabled = !this.editorEnabled; controls.update(); this.applyCameraRoll(); } this.zone.run(() => { this.exporting = false; this.exportPreviewUrl = ''; this.cameraPathStarted = 0; this.cameraRollChange.emit(this.activeCameraRoll); this.resize(); this.videoExportState.emit({ exporting: false, error }); }); }
+  private restoreRendererBehindCover(): void { if (!this.renderer || !this.camera || !this.controls) return; this.setVideoDithering(false); const bounds = this.host.nativeElement.getBoundingClientRect(); this.renderer.setPixelRatio(this.exportPixelRatio); this.renderer.setSize(Math.round(bounds.width), Math.round(bounds.height), false); this.camera.fov = this.exportFov; this.camera.aspect = bounds.width / Math.max(1, bounds.height); this.camera.clearViewOffset(); if (this.exportRestorePose) { this.camera.position.fromArray(this.exportRestorePose.position); this.controls.target.fromArray(this.exportRestorePose.target); this.activeCameraRoll = this.exportRestorePose.roll ?? 0; } this.camera.updateProjectionMatrix(); this.controls.update(); this.applyCameraRoll(); }
+  private restoreAfterVideoExport(error?: string): void { if (!this.exporting) return; window.clearTimeout(this.exportStopFallback); window.clearTimeout(this.exportWatchdog); this.exportStopFallback = this.exportWatchdog = undefined; this.setVideoDithering(false); const renderer = this.renderer; const camera = this.camera; const controls = this.controls; this.exportRecorder = undefined; if (renderer) { renderer.domElement.style.opacity = '1'; renderer.setPixelRatio(this.exportPixelRatio); } if (camera && controls) { camera.fov = this.exportFov; if (this.exportRestorePose) { camera.position.fromArray(this.exportRestorePose.position); controls.target.fromArray(this.exportRestorePose.target); this.activeCameraRoll = this.exportRestorePose.roll ?? 0; } controls.enabled = !this.editorEnabled; controls.update(); this.applyCameraRoll(); } this.zone.run(() => { this.exporting = false; this.exportPreviewUrl = ''; this.cameraPathStarted = 0; this.cameraRollChange.emit(this.activeCameraRoll); this.resize(); this.videoExportState.emit({ exporting: false, error }); }); }
   private downloadVideo(blob: Blob, extension: 'mp4' | 'webm'): void { const name = (this.scene?.name ?? 'camera-path').replace(/[^a-z0-9-_]+/gi, '-').replace(/^-|-$/g, '') || 'camera-path'; const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${name}-camera-path.${extension}`; anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
-  private cancelVideoExport(): void { if (!this.exporting) return; window.clearTimeout(this.exportStopFallback); window.clearTimeout(this.exportWatchdog); this.exporting = false; if (this.exportRecorder?.state !== 'inactive') this.exportRecorder?.stop(); this.videoExportState.emit({ exporting: false }); }
+  private cancelVideoExport(): void { if (!this.exporting) return; window.clearTimeout(this.exportStopFallback); window.clearTimeout(this.exportWatchdog); this.setVideoDithering(false); this.exporting = false; if (this.exportRecorder?.state !== 'inactive') this.exportRecorder?.stop(); this.videoExportState.emit({ exporting: false }); }
+  private setVideoDithering(enabled: boolean): void { for (const mesh of this.meshes.values()) { mesh.material.dithering = enabled; mesh.material.needsUpdate = true; } if (this.comparison) { this.comparison.material.dithering = enabled; this.comparison.material.needsUpdate = true; } }
   undoEdit(): void { if (!this.editable?.undo.length) return; const current = this.captureSnapshot(); const previous = this.editable.undo.pop(); if (!current || !previous) return; this.editable.redo.push(current); this.restoreSnapshot(previous); this.emitHistory(); }
   redoEdit(): void { if (!this.editable?.redo.length) return; const current = this.captureSnapshot(); const next = this.editable.redo.pop(); if (!current || !next) return; this.editable.undo.push(current); this.restoreSnapshot(next); this.emitHistory(); }
   resetEdits(): void { if (!this.editable) return; this.restoreSnapshot(this.editable.original); this.editable.undo = []; this.editable.redo = []; this.emitHistory(); }
@@ -175,7 +177,8 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       uniforms: { map: { value: texture }, depthMap: { value: depthTexture }, invertedDepthMap: { value: invertedDepthTexture }, confidenceMap: { value: confidenceTexture }, viewOffset: { value: new THREE.Vector2() }, texelSize: { value: new THREE.Vector2(1 / width, 1 / height) }, strength: { value: strength }, opacity: { value: opacity }, invertDepth: { value: inverted ? 1 : 0 }, fineWarpRatio: { value: fineWarpRatio }, confidenceAmount: { value: confidenceAmount }, lightIntensity: { value: this.lighting.intensity }, relief: { value: this.lighting.relief }, lightDirection: { value: this.lightDirection() } },
       vertexShader: `varying vec2 vUv;
         void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-      fragmentShader: `uniform sampler2D map;
+      fragmentShader: `#include <common>
+        uniform sampler2D map;
         uniform sampler2D depthMap;
         uniform sampler2D invertedDepthMap;
         uniform sampler2D confidenceMap;
@@ -190,6 +193,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
         uniform float relief;
         uniform vec2 lightDirection;
         varying vec2 vUv;
+        #include <dithering_pars_fragment>
         vec4 softSample(vec2 uv) {
           vec2 radius = texelSize * 3.0;
           vec4 center = texture2D(map, uv) * 0.4;
@@ -224,6 +228,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
           gl_FragColor = vec4(color.rgb, color.a * opacity);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
+          #include <dithering_fragment>
         }`,
       transparent: true, depthWrite: false, side: THREE.DoubleSide,
     });
@@ -235,13 +240,16 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     const ownsTexture = !editedTexture;
     if (request !== this.comparisonRequest) { if (ownsTexture) texture.dispose(); return; }
     this.disposeComparison(); this.comparisonOwnsTexture = ownsTexture; if (ownsTexture) { texture.colorSpace = THREE.SRGBColorSpace; texture.flipY = true; }
-    const material = new THREE.ShaderMaterial({ uniforms: { map: { value: texture }, gain: { value: this.mode === 'difference' ? this.differenceGain : 1 } }, vertexShader: `varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`, fragmentShader: `uniform sampler2D map;
+    const material = new THREE.ShaderMaterial({ uniforms: { map: { value: texture }, gain: { value: this.mode === 'difference' ? this.differenceGain : 1 } }, vertexShader: `varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`, fragmentShader: `#include <common>
+      uniform sampler2D map;
       uniform float gain; varying vec2 vUv;
+      #include <dithering_pars_fragment>
       void main(){
         vec4 color=texture2D(map,vUv);
         gl_FragColor=vec4(clamp(color.rgb*gain,0.0,1.0),1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
+        #include <dithering_fragment>
       }`, depthTest: false, depthWrite: false });
     this.comparison = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material); this.comparison.position.z = -.5; this.comparisonWorld.add(this.comparison); const bounds = this.host.nativeElement.getBoundingClientRect(); this.sizeComparison(bounds.width / Math.max(1, bounds.height)); this.applyMode();
   }
