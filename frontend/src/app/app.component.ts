@@ -67,6 +67,7 @@ export class AppComponent implements OnDestroy {
   preview(path: ParallaxPath): void { this.viewer?.startParallaxPreview(path); }
   updatePreference(parameter: 'separation' | 'differenceGain', value: number): void { this[parameter] = value; this.savePreferences(); }
   updateCameraPath(path: CameraPathState): void { this.replaceActiveMovement({ path }); }
+  updateCameraSequence(movements: CameraMovement[]): void { if (!movements.length) return; this.cameraMovements = movements.slice(0, this.maxCameraMovements); this.activeMovementIndex = 0; const start = this.cameraMovements[0].path.start; this.cameraRoll = start?.roll ?? 0; if (start) this.viewer?.goToPose(start); this.savePreferences(); }
   updateCameraRoll(value: number): void { this.cameraRoll = Math.max(-180, Math.min(180, Number(value) || 0)); this.savePreferences(); }
   updatePathDuration(value: number): void { this.replaceActiveMovement({ duration: Math.max(5, Math.min(20, Number(value) || 7)) }); }
   updatePathEasing(value: CameraPathEasing): void { this.replaceActiveMovement({ easing: value }); }
