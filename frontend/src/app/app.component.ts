@@ -59,7 +59,7 @@ export class AppComponent implements OnDestroy {
   updateWarp(strength: number): void { this.starSettings.warpStrength = strength; const nebula = this.group('nebula')[0]; if (nebula) { nebula.warp_strength = strength; this.updateLayer(nebula); } else this.savePreferences(); }
   toggleDepth(inverted: boolean): void { this.starSettings.invertDepth = inverted; const nebula = this.group('nebula')[0]; if (nebula) { nebula.invert_depth = inverted; this.updateLayer(nebula); } else this.savePreferences(); }
   updateNebulaParameter(parameter: 'fine_warp_ratio' | 'confidence_amount', value: number): void { if (parameter === 'fine_warp_ratio') this.starSettings.fineWarpRatio = value; else this.starSettings.confidenceAmount = value; const nebula = this.group('nebula')[0]; if (nebula) { nebula[parameter] = value; this.updateLayer(nebula); } else this.savePreferences(); }
-  setEditor(open: boolean): void { this.editorOpen = open; if (open) this.mode = '3d'; }
+  setEditor(open: boolean): void { this.editorOpen = open; if (open) { this.mode = '3d'; this.viewer?.resetCamera(); } }
   setBrushTool(tool: DepthBrushTool): void { this.brush = { ...this.brush, tool }; this.savePreferences(); }
   updateBrush(parameter: 'size' | 'strength', value: number): void { this.brush = { ...this.brush, [parameter]: value }; this.savePreferences(); }
   updateLighting(parameter: keyof LightingSettings, value: number): void { this.lighting = { ...this.lighting, [parameter]: value }; this.savePreferences(); }

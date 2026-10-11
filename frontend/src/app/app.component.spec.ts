@@ -51,6 +51,15 @@ describe('AppComponent', () => {
     for (let index = 0; index < 8; index++) component.addMovement();
     expect(component.cameraMovements.length).toBe(5);
   });
+  it('centers the camera when depth editing begins', () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    const resetCamera = jasmine.createSpy('resetCamera');
+    component.viewer = { resetCamera } as never;
+    component.setEditor(true);
+    expect(component.editorOpen).toBeTrue();
+    expect(component.mode).toBe('3d');
+    expect(resetCamera).toHaveBeenCalled();
+  });
   it('links the active movement start to the previous endpoint', () => {
     const component = TestBed.createComponent(AppComponent).componentInstance;
     const previousEnd = { position: [2, 1, 4] as [number, number, number], target: [0, 1, 0] as [number, number, number], roll: -16 };
