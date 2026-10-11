@@ -33,6 +33,8 @@ Open <http://localhost:4200>. The development frontend proxies `/api` and `/medi
 
 On macOS, FFmpeg can be installed with `brew install ffmpeg`.
 
+Optional export light effects are backend assets. For the **Soft reflections** preset, place the source video at `backend/assets/video-effects/soft-reflections.mp4`. Use a black-background MP4 without audio; the backend loops, scales, and blends it over the complete camera animation.
+
 You can also run both services with `./scripts/dev.sh`; it expects the backend virtual environment at `backend/.venv`.
 
 ## Test and build

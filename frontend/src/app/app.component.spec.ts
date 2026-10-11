@@ -19,6 +19,7 @@ describe('AppComponent', () => {
     first.updatePathEasing('ease-out');
     first.updateVideoExport('width', 2560);
     first.updateVideoExport('fps', 60);
+    first.updateVideoLightEffect('soft-reflections');
     const restored = TestBed.createComponent(AppComponent).componentInstance;
     expect(restored.separation).toBe(2.2);
     expect(restored.starSettings.warpStrength).toBe(0.035);
@@ -28,6 +29,7 @@ describe('AppComponent', () => {
     expect(restored.cameraPathEasing).toBe('ease-out');
     expect(restored.videoExport.width).toBe(2560);
     expect(restored.videoExport.fps).toBe(60);
+    expect(restored.videoExport.lightEffect).toBe('soft-reflections');
   });
   it('chains a new camera movement from the previous endpoint', () => {
     const component = TestBed.createComponent(AppComponent).componentInstance;

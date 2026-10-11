@@ -29,5 +29,6 @@ export interface CameraPathPose { position: [number, number, number]; target: [n
 export interface CameraPathState { start?: CameraPathPose; end?: CameraPathPose }
 export type CameraPathEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out';
 export interface CameraMovement { id: string; path: CameraPathState; duration: number; easing: CameraPathEasing }
-export interface VideoExportSettings { width: number; height: number; fps: number }
+export type VideoLightEffect = 'none' | 'soft-reflections';
+export interface VideoExportSettings { width: number; height: number; fps: number; lightEffect: VideoLightEffect }
 export interface VideoExportState { exporting: boolean; error?: string }

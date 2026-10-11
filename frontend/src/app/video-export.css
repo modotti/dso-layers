@@ -22,6 +22,8 @@
 
 .video-export header b { color: #cfc6ff; }
 .video-export > select { width: 100%; }
+.video-export .light-effect { display: block; margin-top: 8px; color: #9ea7bb; font-size: 9px; }
+.video-export .light-effect select { margin-top: 4px; }
 .video-export > div { display: grid; grid-template-columns: 1fr 1fr 0.8fr; gap: 6px; margin-top: 8px; }
 .video-export label { color: #7f899c; font-size: 9px; }
 .video-export input, .video-export select { box-sizing: border-box; width: 100%; margin-top: 3px; padding: 6px; border: 1px solid #303748; border-radius: 5px; color: #dce3f2; background: #111620; }
