@@ -43,7 +43,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   private readonly zone = inject(NgZone);
   private readonly api = inject(ApiService);
   private renderer?: THREE.WebGLRenderer; private world = new THREE.Scene(); private comparisonWorld = new THREE.Scene(); private comparisonCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1); private camera?: THREE.PerspectiveCamera; private controls?: OrbitControls;
-  private meshes = new Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.Material>>(); private comparison?: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>;
+  private meshes = new Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.Material>>(); private comparison?: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>; private comparisonOwnsTexture = true;
   private frame = 0; private observer?: ResizeObserver; private previewStarted = 0; private previewPath: ParallaxPath = 'horizontal'; private zoomStarted = 0; private zoomFrom = 5; private zoomTo = 5; private zoomDirection = new THREE.Vector3(0, 0, 1); private driftZoom = false; private driftPhaseX = 0; private driftPhaseY = 0; private driftAmplitudeX = .4; private driftAmplitudeY = .28; private cameraPathStarted = 0; private playbackMovements: CameraMovement[] = []; private playbackMovementIndex = 0; private activeCameraRoll = 0; private comparisonRequest = 0; private sceneLoadGeneration = 0; private loadedSceneKey = '';
   private editable?: EditableMaps; private drawing = false; private lastPaintUv?: THREE.Vector2;
   private exportRecorder?: MediaRecorder; private exportChunks: Blob[] = []; private exportMimeType = ''; private exportError = ''; private exportRestorePose?: CameraPathPose; private exportPixelRatio = 1; private exportFov = 45; private exportStopFallback?: number; private exportWatchdog?: number;
@@ -52,7 +52,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   ngAfterViewInit(): void { this.setup(); if (this.scene) { this.loadedSceneKey = this.sceneKey(); void this.loadScene(); } }
   ngOnChanges(changes: SimpleChanges): void {
     if (!this.renderer) return;
-    if (changes['scene']) { const key = this.sceneKey(); if (key !== this.loadedSceneKey) { this.loadedSceneKey = key; void this.loadScene(); } else this.applyLayers(); } else if (changes['comparisonUrl'] && this.comparisonUrl) void this.loadComparison(); else this.applyLayers();
+    if (changes['scene']) { const key = this.sceneKey(); if (key !== this.loadedSceneKey) { this.loadedSceneKey = key; void this.loadScene(); } else { this.applyLayers(); if (changes['comparisonUrl'] && this.comparisonUrl) void this.loadComparison(); } } else if (changes['comparisonUrl'] && this.comparisonUrl) void this.loadComparison(); else this.applyLayers();
     if (changes['differenceGain'] && this.comparison) this.comparison.material.uniforms['gain'].value = this.mode === 'difference' ? this.differenceGain : 1;
     if (changes['editorEnabled'] && this.controls) { this.controls.enabled = !this.editorEnabled; if (!this.editorEnabled) { this.drawing = false; this.cursorVisible = false; } }
     if (changes['videoExport']) this.updateExportFrame();
@@ -229,7 +229,11 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   }
   private async loadComparison(): Promise<void> {
     const url = this.comparisonUrl; if (!url) return; const request = ++this.comparisonRequest;
-    const texture = await new THREE.TextureLoader().loadAsync(url); if (request !== this.comparisonRequest) { texture.dispose(); return; } this.disposeComparison(); texture.colorSpace = THREE.SRGBColorSpace; texture.flipY = true;
+    const editedTexture = this.editedComparisonTexture();
+    const texture = editedTexture ?? await new THREE.TextureLoader().loadAsync(url);
+    const ownsTexture = !editedTexture;
+    if (request !== this.comparisonRequest) { if (ownsTexture) texture.dispose(); return; }
+    this.disposeComparison(); this.comparisonOwnsTexture = ownsTexture; if (ownsTexture) { texture.colorSpace = THREE.SRGBColorSpace; texture.flipY = true; }
     const material = new THREE.ShaderMaterial({ uniforms: { map: { value: texture }, gain: { value: this.mode === 'difference' ? this.differenceGain : 1 } }, vertexShader: `varying vec2 vUv; void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`, fragmentShader: `uniform sampler2D map;
       uniform float gain; varying vec2 vUv;
       void main(){
@@ -240,8 +244,15 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       }`, depthTest: false, depthWrite: false });
     this.comparison = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material); this.comparison.position.z = -.5; this.comparisonWorld.add(this.comparison); const bounds = this.host.nativeElement.getBoundingClientRect(); this.sizeComparison(bounds.width / Math.max(1, bounds.height)); this.applyMode();
   }
+  private editedComparisonTexture(): THREE.Texture | undefined {
+    if (!this.editable) return undefined;
+    if (this.mode === 'confidence') return this.editable.confidenceTexture;
+    if (this.mode !== 'depth') return undefined;
+    const inverted = this.scene?.layers.find(layer => layer.type === 'nebula')?.invert_depth ?? false;
+    return inverted ? this.editable.invertedTexture : this.editable.depthTexture;
+  }
   private sizeComparison(viewportAspect: number): void { if (!this.comparison || !this.scene) return; const imageAspect = this.scene.source.width / this.scene.source.height; if (viewportAspect > imageAspect) this.comparison.scale.set(imageAspect / viewportAspect, 1, 1); else this.comparison.scale.set(1, viewportAspect / imageAspect, 1); }
-  private disposeComparison(): void { if (!this.comparison) return; this.comparisonWorld.remove(this.comparison); this.comparison.geometry.dispose(); (this.comparison.material.uniforms['map'].value as THREE.Texture).dispose(); this.comparison.material.dispose(); this.comparison = undefined; }
+  private disposeComparison(): void { if (!this.comparison) return; this.comparisonWorld.remove(this.comparison); this.comparison.geometry.dispose(); if (this.comparisonOwnsTexture) (this.comparison.material.uniforms['map'].value as THREE.Texture).dispose(); this.comparison.material.dispose(); this.comparison = undefined; this.comparisonOwnsTexture = true; }
   private sizePlane(mesh: THREE.Mesh, depth: number, position: {x:number;y:number;z:number}, scale: {x:number;y:number;z:number}): void {
     if (!this.scene || !this.camera) return; const distance = this.scene.camera.position[2] - depth; const height = 2 * distance * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)); const width = height * this.scene.source.width / this.scene.source.height;
     mesh.position.set(position.x, position.y, depth + position.z); mesh.scale.set(width * scale.x, height * scale.y, scale.z);
