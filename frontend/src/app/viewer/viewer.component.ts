@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { ApiService } from '../api.service';
 import { CameraMovement, CameraPathEasing, CameraPathPose, CameraPathState, DepthBrushSettings, EditorHistoryState, GpuDiagnostics, LightingSettings, ParallaxPath, SceneDocument, SceneLayer, VideoExportSettings, VideoExportState, ViewerMode } from '../models';
+import { createRandomCameraSequence } from '../random-camera-sequence';
 
 interface EditSnapshot { depth: Uint8ClampedArray; confidence: Uint8ClampedArray }
 interface EditableMaps {
@@ -34,6 +35,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Output() historyChange = new EventEmitter<EditorHistoryState>();
   @Output() diagnostics = new EventEmitter<GpuDiagnostics>();
   @Output() cameraPathChange = new EventEmitter<CameraPathState>();
+  @Output() cameraSequenceChange = new EventEmitter<CameraMovement[]>();
   @Output() cameraRollChange = new EventEmitter<number>();
   @Output() playbackState = new EventEmitter<boolean>();
   @Output() videoExportState = new EventEmitter<VideoExportState>();
@@ -62,6 +64,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   startParallaxPreview(path: ParallaxPath = 'horizontal'): void { this.resetCamera(); this.previewPath = path; this.previewStarted = performance.now(); }
   startZoom(direction: 'in' | 'out'): void { if (!this.camera || !this.controls) return; this.previewStarted = 0; this.driftZoom = false; this.zoomFrom = this.camera.position.distanceTo(this.controls.target); this.zoomTo = direction === 'in' ? this.controls.minDistance : this.controls.maxDistance; this.zoomDirection.copy(this.camera.position).sub(this.controls.target).normalize(); this.zoomStarted = performance.now(); }
   startDriftZoom(): void { if (!this.camera || !this.controls) return; this.driftPhaseX = Math.random() * Math.PI * 2; this.driftPhaseY = Math.random() * Math.PI * 2; this.driftAmplitudeX = .34 + Math.random() * .28; this.driftAmplitudeY = .22 + Math.random() * .22; this.startZoom('in'); this.driftZoom = true; }
+  generateRandomCameraSequence(): void { if (!this.scene) return; this.cameraSequenceChange.emit(createRandomCameraSequence(this.scene, this.videoExport, 5, Math.random, this.separation)); }
   captureCameraPoint(point: 'start' | 'end'): void { if (!this.camera || !this.controls) return; const pose = { position: this.camera.position.toArray() as [number, number, number], target: this.controls.target.toArray() as [number, number, number], roll: this.activeCameraRoll }; this.cameraPathChange.emit({ ...this.cameraPath, [point]: pose }); }
   goToCameraPoint(point: 'start' | 'end'): void { const pose = this.cameraPath[point]; if (pose) this.goToPose(pose); }
   goToPose(pose: CameraPathPose): void { if (!this.camera || !this.controls) return; this.previewStarted = 0; this.zoomStarted = 0; this.cameraPathStarted = 0; this.driftZoom = false; this.activeCameraRoll = pose.roll ?? 0; this.camera.position.fromArray(pose.position); this.controls.target.fromArray(pose.target); this.camera.lookAt(this.controls.target); this.camera.updateMatrixWorld(true); this.controls.update(); this.applyCameraRoll(); this.cameraRollChange.emit(this.activeCameraRoll); }
