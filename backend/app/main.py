@@ -27,7 +27,7 @@ VIDEO_EFFECTS = {
     "soft-reflections": {
         "path": Path(__file__).resolve().parents[1] / "assets" / "video-effects" / "soft-reflections.mp4",
         "blend_mode": "screen",
-        "opacity": 0.07,
+        "opacity": 0.10,
     },
 }
 logger = logging.getLogger("uvicorn.error").getChild("processing")
