@@ -21,6 +21,7 @@ describe('AppComponent', () => {
     first.updateCameraRoll(-28);
     first.updatePathDuration(16);
     first.updatePathEasing('ease-out');
+    first.updatePathFlow('continuous');
     first.updateVideoExport('width', 2560);
     first.updateVideoExport('fps', 60);
     first.updateVideoLightEffect('soft-reflections');
@@ -32,6 +33,7 @@ describe('AppComponent', () => {
     expect(restored.cameraRoll).toBe(-28);
     expect(restored.cameraPathDuration).toBe(16);
     expect(restored.cameraPathEasing).toBe('ease-out');
+    expect(restored.cameraPathFlow).toBe('continuous');
     expect(restored.videoExport.width).toBe(2560);
     expect(restored.videoExport.fps).toBe(60);
     expect(restored.videoExport.lightEffect).toBe('soft-reflections');
