@@ -6,6 +6,7 @@ import { CameraMovement, CameraPathEasing, CameraPathFlow, CameraPathPose, Camer
 import { createRandomCameraSequence } from '../random-camera-sequence';
 import { videoCaptureBitrate } from '../video-export';
 import { effectiveLayerDepth } from '../layer-depth';
+import { cinematicPathPhase } from '../camera-path-flow';
 
 interface EditSnapshot { depth: Uint8ClampedArray; confidence: Uint8ClampedArray }
 interface EditableMaps {
@@ -32,7 +33,8 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() cameraRoll = 0;
   @Input() cameraPathDuration = 7;
   @Input() cameraPathEasing: CameraPathEasing = 'ease-in-out';
-  @Input() cameraPathFlow: CameraPathFlow = 'continuous-smooth';
+  @Input() cameraPathFlow: CameraPathFlow = 'continuous';
+  @Input() transitionMomentum = 0.55;
   @Input() videoExport: VideoExportSettings = { width: 1920, height: 1080, fps: 30, lightEffect: 'none' };
   @Input() editorEnabled = false;
   @Input() brush: DepthBrushSettings = { tool: 'near', size: 80, strength: .25 };
@@ -101,7 +103,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     } catch { this.restoreAfterVideoExport('Video recording could not be started.'); }
   }
   private easeCameraPath(phase: number, easing: CameraPathEasing): number { if (easing === 'linear') return phase; if (easing === 'ease-in') return phase ** 3; if (easing === 'ease-out') return 1 - (1 - phase) ** 3; return phase * phase * phase * (phase * (phase * 6 - 15) + 10); }
-  private updateContinuousCamera(now: number): void { if (!this.camera || !this.controls || !this.continuousPositionCurve || !this.continuousTargetCurve || !this.continuousRollCurve) return; const rawPhase = Math.min(1, (now - this.cameraPathStarted) / Math.max(1, this.continuousDuration)); const phase = this.cameraPathFlow === 'continuous-smooth' ? this.easeCameraPath(rawPhase, 'ease-in-out') : rawPhase; this.continuousPositionCurve.getPointAt(phase, this.camera.position); this.continuousTargetCurve.getPointAt(phase, this.controls.target); this.activeCameraRoll = this.continuousRollCurve.getPoint(phase).x; this.controls.update(); if (rawPhase >= 1) { this.cameraPathStarted = 0; if (!this.exporting) this.controls.enabled = !this.editorEnabled; this.zone.run(() => this.cameraRollChange.emit(this.activeCameraRoll)); this.setPlaybackMode(false); if (this.exporting) requestAnimationFrame(() => this.finishVideoRecording()); } }
+  private updateContinuousCamera(now: number): void { if (!this.camera || !this.controls || !this.continuousPositionCurve || !this.continuousTargetCurve || !this.continuousRollCurve) return; const rawPhase = Math.min(1, (now - this.cameraPathStarted) / Math.max(1, this.continuousDuration)); const envelopedPhase = this.easeCameraPath(rawPhase, 'ease-in-out'); const phase = cinematicPathPhase(envelopedPhase, this.playbackMovements.length, this.transitionMomentum); this.continuousPositionCurve.getPoint(phase, this.camera.position); this.continuousTargetCurve.getPoint(phase, this.controls.target); this.activeCameraRoll = this.continuousRollCurve.getPoint(phase).x; this.controls.update(); if (rawPhase >= 1) { this.cameraPathStarted = 0; if (!this.exporting) this.controls.enabled = !this.editorEnabled; this.zone.run(() => this.cameraRollChange.emit(this.activeCameraRoll)); this.setPlaybackMode(false); if (this.exporting) requestAnimationFrame(() => this.finishVideoRecording()); } }
   private setPlaybackMode(active: boolean, notify = true): void { if (notify) this.zone.run(() => this.playbackState.emit(active)); }
   private applyCameraRoll(): void { if (this.camera && this.activeCameraRoll) this.camera.rotateZ(THREE.MathUtils.degToRad(this.activeCameraRoll)); }
   private finishVideoRecording(): void { const recorder = this.exportRecorder; if (!recorder || recorder.state === 'inactive') { this.restoreAfterVideoExport(this.exportError || 'The browser stopped recording unexpectedly.'); return; } recorder.stop(); window.clearTimeout(this.exportStopFallback); this.exportStopFallback = window.setTimeout(() => { if (this.exporting) this.restoreAfterVideoExport('The browser did not finalize the video file.'); }, 2000); }
