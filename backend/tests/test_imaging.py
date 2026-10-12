@@ -44,3 +44,33 @@ def test_preview_is_bounded_without_changing_aspect_ratio():
     image = np.zeros((2000, 4000, 3), dtype=np.float32)
     preview = resize_preview(image)
     assert preview.shape == (1024, 2048, 3)
+
+
+def test_depth_map_preview_supports_two_dimensional_images():
+    depth = np.linspace(0, 1, 16, dtype=np.float32).reshape(4, 4)
+
+    preview = resize_preview(depth, max_edge=2)
+
+    assert preview.shape == (2, 2)
+    np.testing.assert_allclose(preview, [[1 / 6, 3 / 10], [7 / 10, 5 / 6]], atol=1e-7)
+
+
+def test_rgba_preview_preserves_subpixel_star_signal():
+    rgba = np.zeros((4, 4, 4), dtype=np.float32)
+    rgba[0, 0] = (0.5, 0.75, 1.0, 1.0)
+
+    preview = resize_preview(rgba, max_edge=2)
+
+    np.testing.assert_allclose(preview[0, 0, :3], (0.5, 0.75, 1.0), atol=1e-7)
+    np.testing.assert_allclose(preview[0, 0, 3], 0.25, atol=1e-7)
+    np.testing.assert_allclose(
+        preview[..., :3] * preview[..., 3:4],
+        np.array(
+            [
+                [[0.125, 0.1875, 0.25], [0.0, 0.0, 0.0]],
+                [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]],
+            ],
+            dtype=np.float32,
+        ),
+        atol=1e-7,
+    )

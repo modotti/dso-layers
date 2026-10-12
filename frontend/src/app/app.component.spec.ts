@@ -15,6 +15,7 @@ describe('AppComponent', () => {
   it('restores saved viewer preferences', () => {
     const first = TestBed.createComponent(AppComponent).componentInstance;
     first.updatePreference('separation', 2.2);
+    first.updatePreference('starPresence', 1.6);
     first.updateWarp(0.035);
     first.updateLighting('intensity', .11);
     first.updateCameraRoll(-28);
@@ -25,6 +26,7 @@ describe('AppComponent', () => {
     first.updateVideoLightEffect('soft-reflections');
     const restored = TestBed.createComponent(AppComponent).componentInstance;
     expect(restored.separation).toBe(2.2);
+    expect(restored.starPresence).toBe(1.6);
     expect(restored.starSettings.warpStrength).toBe(0.035);
     expect(restored.lighting.intensity).toBe(.11);
     expect(restored.cameraRoll).toBe(-28);

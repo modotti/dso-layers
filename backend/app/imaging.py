@@ -155,4 +155,23 @@ def resize_preview(image: np.ndarray, max_edge: int = MAX_PREVIEW_EDGE) -> np.nd
         return image
     import cv2
 
-    return cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
+    if image.ndim != 3 or image.shape[2] != 4:
+        return cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA)
+
+    # RGBA assets use straight alpha. Resizing their color and alpha channels
+    # independently darkens sub-pixel stars because the renderer multiplies
+    # the already-averaged color by the averaged alpha once more. Filter in
+    # premultiplied-alpha space, then return straight RGBA for browser blending.
+    alpha = image[..., 3:4]
+    premultiplied = image[..., :3] * alpha
+    resized_premultiplied = cv2.resize(premultiplied, (width, height), interpolation=cv2.INTER_AREA)
+    resized_alpha = cv2.resize(alpha, (width, height), interpolation=cv2.INTER_AREA)
+    if resized_alpha.ndim == 2:
+        resized_alpha = resized_alpha[..., None]
+    straight_rgb = np.divide(
+        resized_premultiplied,
+        resized_alpha,
+        out=np.zeros_like(resized_premultiplied),
+        where=resized_alpha > 1e-8,
+    )
+    return np.concatenate([straight_rgb, resized_alpha], axis=2)

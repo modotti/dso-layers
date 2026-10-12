@@ -23,6 +23,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() mode: ViewerMode = '3d';
   @Input() comparisonUrl: string | null = null;
   @Input() separation = 1;
+  @Input() starPresence = 1;
   @Input() soloLayerId: string | null = null;
   @Input() differenceGain = 8;
   @Input() lighting: LightingSettings = { intensity: .06, relief: 1.2, direction: 135 };
@@ -155,7 +156,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
         shader.uniforms['depthMap'].value = this.editable.depthTexture; shader.uniforms['invertedDepthMap'].value = this.editable.invertedTexture; shader.uniforms['confidenceMap'].value = this.editable.confidenceTexture;
         depthTexture.dispose(); if (invertedDepthTexture !== depthTexture) invertedDepthTexture.dispose(); if (confidenceTexture !== depthTexture && confidenceTexture !== invertedDepthTexture) confidenceTexture.dispose();
       } else {
-        material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, premultipliedAlpha: false, depthWrite: false, side: THREE.DoubleSide, opacity: layer.opacity });
+        material = this.createStarMaterial(texture, layer.opacity);
       }
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material); mesh.renderOrder = layer.order; this.world.add(mesh); this.meshes.set(layer.id, mesh);
     }));
@@ -163,6 +164,28 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     if (this.comparisonUrl) await this.loadComparison(); this.applyLayers(); this.applyMode();
     this.emitHistory();
     this.emitDiagnostics();
+  }
+
+  private createStarMaterial(texture: THREE.Texture, opacity: number): THREE.ShaderMaterial {
+    return new THREE.ShaderMaterial({
+      uniforms: { map: { value: texture }, opacity: { value: opacity }, presence: { value: this.starPresence } },
+      vertexShader: `varying vec2 vUv;
+        void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: `uniform sampler2D map;
+        uniform float opacity;
+        uniform float presence;
+        varying vec2 vUv;
+        #include <dithering_pars_fragment>
+        void main() {
+          vec4 color = texture2D(map, vUv);
+          float enhancedAlpha = 1.0 - pow(max(0.0, 1.0 - color.a), max(0.01, presence));
+          gl_FragColor = vec4(color.rgb, enhancedAlpha * opacity);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+          #include <dithering_fragment>
+        }`,
+      transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    });
   }
 
   private createEditableMaps(depthSource: CanvasImageSource, confidenceSource: CanvasImageSource, sourceWidth: number, sourceHeight: number): EditableMaps {
@@ -268,7 +291,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     mesh.position.set(position.x, position.y, depth + position.z); mesh.scale.set(width * scale.x, height * scale.y, scale.z);
   }
   private lightDirection(): THREE.Vector2 { const radians = THREE.MathUtils.degToRad(this.lighting.direction); return new THREE.Vector2(Math.cos(radians), Math.sin(radians)); }
-  private applyLayers(): void { if (!this.scene) return; const anchorDepth = this.scene.layers.find(layer => layer.type === 'nebula')?.depth ?? 0; for (const layer of this.scene.layers) { const mesh = this.meshes.get(layer.id); if (!mesh) continue; mesh.visible = this.mode === '3d' && layer.visible && (!this.soloLayerId || this.soloLayerId === layer.id); if (mesh.material instanceof THREE.ShaderMaterial) { mesh.material.uniforms['opacity'].value = layer.opacity; mesh.material.uniforms['strength'].value = layer.warp_strength ?? 0; mesh.material.uniforms['invertDepth'].value = layer.invert_depth ? 1 : 0; mesh.material.uniforms['fineWarpRatio'].value = layer.fine_warp_ratio ?? .25; mesh.material.uniforms['confidenceAmount'].value = layer.confidence_amount ?? .7; mesh.material.uniforms['lightIntensity'].value = this.lighting.intensity; mesh.material.uniforms['relief'].value = this.lighting.relief; mesh.material.uniforms['lightDirection'].value.copy(this.lightDirection()); } else if (mesh.material instanceof THREE.MeshBasicMaterial) { mesh.material.opacity = layer.opacity; } this.sizePlane(mesh, separatedLayerDepth(layer, anchorDepth, this.separation), layer.transform.position, layer.transform.scale); } }
+  private applyLayers(): void { if (!this.scene) return; const anchorDepth = this.scene.layers.find(layer => layer.type === 'nebula')?.depth ?? 0; for (const layer of this.scene.layers) { const mesh = this.meshes.get(layer.id); if (!mesh) continue; mesh.visible = this.mode === '3d' && layer.visible && (!this.soloLayerId || this.soloLayerId === layer.id); if (mesh.material instanceof THREE.ShaderMaterial) { const uniforms = mesh.material.uniforms; uniforms['opacity'].value = layer.opacity; if (uniforms['presence']) uniforms['presence'].value = this.starPresence; if (uniforms['strength']) { uniforms['strength'].value = layer.warp_strength ?? 0; uniforms['invertDepth'].value = layer.invert_depth ? 1 : 0; uniforms['fineWarpRatio'].value = layer.fine_warp_ratio ?? .25; uniforms['confidenceAmount'].value = layer.confidence_amount ?? .7; uniforms['lightIntensity'].value = this.lighting.intensity; uniforms['relief'].value = this.lighting.relief; uniforms['lightDirection'].value.copy(this.lightDirection()); } } this.sizePlane(mesh, separatedLayerDepth(layer, anchorDepth, this.separation), layer.transform.position, layer.transform.scale); } }
   private applyMode(): void { if (!this.scene) return; for (const layer of this.scene.layers) { const mesh = this.meshes.get(layer.id); if (mesh) mesh.visible = this.mode === '3d' && layer.visible && (!this.soloLayerId || this.soloLayerId === layer.id); } }
   private onPointerDown = (event: PointerEvent): void => {
     if (!this.editorEnabled || event.button !== 0) return; const uv = this.pointerUv(event); if (!uv || !this.editable) return;
@@ -318,5 +341,5 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     if (this.camera && this.controls && this.scene) { const origin = this.scene.camera.position; const target = this.scene.camera.target; const relativeX = (this.camera.position.x - this.controls.target.x) - (origin[0] - target[0]); const relativeY = (this.camera.position.y - this.controls.target.y) - (origin[1] - target[1]); for (const mesh of this.meshes.values()) if (mesh.material instanceof THREE.ShaderMaterial && mesh.material.uniforms['viewOffset']) mesh.material.uniforms['viewOffset'].value.set(relativeX, relativeY); }
     if (this.renderer && this.camera) { if (this.mode === '3d') this.renderer.render(this.world, this.camera); else this.renderer.render(this.comparisonWorld, this.comparisonCamera); }
   };
-  private disposeMeshes(): void { for (const mesh of this.meshes.values()) { this.world.remove(mesh); mesh.geometry.dispose(); if (mesh.material instanceof THREE.ShaderMaterial) { (mesh.material.uniforms['map'].value as THREE.Texture).dispose(); const depthMap = mesh.material.uniforms['depthMap'].value as THREE.Texture; const invertedDepthMap = mesh.material.uniforms['invertedDepthMap'].value as THREE.Texture; const confidenceMap = mesh.material.uniforms['confidenceMap'].value as THREE.Texture; depthMap.dispose(); if (invertedDepthMap !== depthMap) invertedDepthMap.dispose(); if (confidenceMap !== depthMap && confidenceMap !== invertedDepthMap) confidenceMap.dispose(); } else if (mesh.material instanceof THREE.MeshBasicMaterial) mesh.material.map?.dispose(); mesh.material.dispose(); } this.meshes.clear(); this.editable = undefined; this.emitHistory(); }
+  private disposeMeshes(): void { for (const mesh of this.meshes.values()) { this.world.remove(mesh); mesh.geometry.dispose(); if (mesh.material instanceof THREE.ShaderMaterial) { (mesh.material.uniforms['map'].value as THREE.Texture).dispose(); const depthMap = mesh.material.uniforms['depthMap']?.value as THREE.Texture | undefined; const invertedDepthMap = mesh.material.uniforms['invertedDepthMap']?.value as THREE.Texture | undefined; const confidenceMap = mesh.material.uniforms['confidenceMap']?.value as THREE.Texture | undefined; depthMap?.dispose(); if (invertedDepthMap && invertedDepthMap !== depthMap) invertedDepthMap.dispose(); if (confidenceMap && confidenceMap !== depthMap && confidenceMap !== invertedDepthMap) confidenceMap.dispose(); } mesh.material.dispose(); } this.meshes.clear(); this.editable = undefined; this.emitHistory(); }
 }
