@@ -5,11 +5,12 @@ export function createRandomCameraSequence(
   video: VideoExportSettings,
   count = 5,
   random: () => number = Math.random,
-  separation = 1,
+  _separation = 1,
 ): CameraMovement[] {
   const movementCount = Math.max(1, Math.min(5, Math.floor(count)));
   const nebula = scene.layers.find(layer => layer.type === 'nebula');
-  const nebulaDepth = (nebula?.depth ?? 0) * separation;
+  // Separation expands star layers around this fixed starless plane.
+  const nebulaDepth = nebula?.depth ?? 0;
   const planeZ = nebulaDepth + (nebula?.transform?.position.z ?? 0);
   const originZ = scene.camera.position[2];
   const targetZ = scene.camera.target[2];
