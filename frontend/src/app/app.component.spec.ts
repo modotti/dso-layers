@@ -44,6 +44,17 @@ describe('AppComponent', () => {
     expect(restored.textOverlays[0].text).toBe('Horsehead Nebula');
     expect(restored.textOverlays[0].fadeIn).toBe(1.2);
   });
+  it('inherits the previous caption settings without copying its text', () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    component.addTextOverlay();
+    component.updateTextOverlay({ text: 'Original caption', fontFamily: 'Bitter', letterSpacing: .08, lineHeight: 1.65, opacity: .55, x: .2, y: .7 });
+    const previous = component.activeTextOverlay!;
+    component.addTextOverlay();
+    const added = component.activeTextOverlay!;
+    expect(added.text).toBe('Caption');
+    expect(added.id).not.toBe(previous.id);
+    expect({ ...added, id: previous.id, text: previous.text }).toEqual(previous);
+  });
   it('chains a new camera movement from the previous endpoint', () => {
     const component = TestBed.createComponent(AppComponent).componentInstance;
     const end = { position: [1, 2, 3] as [number, number, number], target: [0, 0, 0] as [number, number, number], roll: 24 };
