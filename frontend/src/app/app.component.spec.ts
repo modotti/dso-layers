@@ -26,6 +26,8 @@ describe('AppComponent', () => {
     first.updateVideoExport('width', 2560);
     first.updateVideoExport('fps', 60);
     first.updateVideoLightEffect('soft-reflections');
+    first.addTextOverlay();
+    first.updateTextOverlay({ text: 'Horsehead Nebula', fadeIn: 1.2 });
     const restored = TestBed.createComponent(AppComponent).componentInstance;
     expect(restored.separation).toBe(2.2);
     expect(restored.starPresence).toBe(1.6);
@@ -39,6 +41,8 @@ describe('AppComponent', () => {
     expect(restored.videoExport.width).toBe(2560);
     expect(restored.videoExport.fps).toBe(60);
     expect(restored.videoExport.lightEffect).toBe('soft-reflections');
+    expect(restored.textOverlays[0].text).toBe('Horsehead Nebula');
+    expect(restored.textOverlays[0].fadeIn).toBe(1.2);
   });
   it('chains a new camera movement from the previous endpoint', () => {
     const component = TestBed.createComponent(AppComponent).componentInstance;

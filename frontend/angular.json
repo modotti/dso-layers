@@ -16,7 +16,7 @@
           "defaultConfiguration": "production"
         },
         "serve": { "builder": "@angular/build:dev-server", "configurations": { "production": { "buildTarget": "astro-parallax-studio:build:production" }, "development": { "buildTarget": "astro-parallax-studio:build" } }, "defaultConfiguration": "development" },
-        "test": { "builder": "@angular/build:karma", "options": { "tsConfig": "tsconfig.spec.json", "polyfills": ["zone.js", "zone.js/testing"], "styles": ["src/styles.css"] } }
+        "test": { "builder": "@angular/build:karma", "options": { "tsConfig": "tsconfig.spec.json", "polyfills": ["zone.js", "zone.js/testing"], "assets": [{ "glob": "**/*", "input": "public" }], "styles": ["src/styles.css"] } }
       }
     }
   },

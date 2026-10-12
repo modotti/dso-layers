@@ -33,3 +33,10 @@ export interface CameraMovement { id: string; path: CameraPathState; duration: n
 export type VideoLightEffect = 'none' | 'soft-reflections';
 export interface VideoExportSettings { width: number; height: number; fps: number; lightEffect: VideoLightEffect }
 export interface VideoExportState { exporting: boolean; error?: string }
+export type TextOverlayPosition = 'top-left' | 'top-center' | 'top-right' | 'center-left' | 'center' | 'center-right' | 'bottom-left' | 'bottom-center' | 'bottom-right';
+export type TextOverlayAlignment = 'left' | 'center' | 'right';
+export interface TextOverlay {
+  id: string; text: string; enabled: boolean; start: number; duration: number; fadeIn: number; fadeOut: number;
+  position: TextOverlayPosition; fontSize: number; fontWeight: number; fontWidth?: number; letterSpacing?: number; color: string; colorOpacity?: number;
+  alignment: TextOverlayAlignment; shadow: boolean; background: boolean; motion: boolean;
+}
