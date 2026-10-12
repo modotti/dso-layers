@@ -1,5 +1,5 @@
 import { SceneLayer } from './models';
-import { separatedLayerDepth } from './layer-depth';
+import { effectiveLayerDepth, separatedLayerDepth } from './layer-depth';
 
 describe('separatedLayerDepth', () => {
   const layer = (type: SceneLayer['type'], depth: number) =>
@@ -26,5 +26,27 @@ describe('separatedLayerDepth', () => {
     expect(separatedLayerDepth(near, anchorDepth, 1)).toBeCloseTo(0.45);
     expect(separatedLayerDepth(distant, anchorDepth, 3)).toBeCloseTo(0.25);
     expect(separatedLayerDepth(near, anchorDepth, 3)).toBeCloseTo(2.05);
+  });
+
+  it('keeps every effective star depth in front of the translated nebula', () => {
+    const behind = layer('stars', -0.8);
+    behind.transform = {
+      position: { x: 0, y: 0, z: -0.4 },
+      scale: { x: 1, y: 1, z: 1 },
+    };
+
+    expect(effectiveLayerDepth(behind, anchorDepth, 0.2, 3)).toBeCloseTo(
+      -0.149,
+    );
+  });
+
+  it('includes local Z when reporting effective depth', () => {
+    const star = layer('stars', 0.15);
+    star.transform = {
+      position: { x: 0, y: 0, z: 0.25 },
+      scale: { x: 1, y: 1, z: 1 },
+    };
+
+    expect(effectiveLayerDepth(star, anchorDepth, 0, 1)).toBeCloseTo(0.4);
   });
 });

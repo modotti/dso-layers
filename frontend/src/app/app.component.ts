@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { ApiService } from './api.service';
 import { CameraMovement, CameraPathEasing, CameraPathFlow, CameraPathState, DepthBrushSettings, DepthBrushTool, EditorHistoryState, GpuDiagnostics, LightingSettings, ParallaxPath, ProjectResponse, SceneLayer, VideoExportSettings, VideoExportState, VideoLightEffect, ViewerMode } from './models';
 import { ViewerComponent } from './viewer/viewer.component';
+import { effectiveLayerDepth } from './layer-depth';
 
 @Component({ selector: 'aps-root', standalone: true, imports: [CommonModule, FormsModule, ViewerComponent], templateUrl: './app.component.html', styleUrls: ['./app.component.css', './phase2.css', './depth-editor.css', './lighting.css', './loading.css', './video-export.css'] })
 export class AppComponent implements OnDestroy {
@@ -57,6 +58,7 @@ export class AppComponent implements OnDestroy {
   updateLayer(layer: SceneLayer): void { this.project = this.project ? {...this.project, scene: {...this.project.scene, layers: [...this.project.scene.layers]}} : null; this.savePreferences(); }
   resetLayer(layer: SceneLayer): void { const stars = this.group('stars'); const starIndex = stars.findIndex(candidate => candidate.id === layer.id); const initialDepth = layer.type === 'nebula' ? -.35 : -.15 + starIndex * (.6 / Math.max(1, stars.length - 1)); Object.assign(layer, { visible: true, opacity: 1, depth: initialDepth, transform: { position: {x:0,y:0,z:0}, scale: {x:1,y:1,z:1} } }); this.updateLayer(layer); }
   group(type: 'nebula'|'stars'): SceneLayer[] { return this.project?.scene.layers.filter(layer => layer.type === type) ?? []; }
+  effectiveDepth(layer: SceneLayer): number { const anchor = this.group('nebula')[0]; return effectiveLayerDepth(layer, anchor?.depth ?? 0, anchor?.transform.position.z ?? 0, this.separation); }
   updateWarp(strength: number): void { this.starSettings.warpStrength = strength; const nebula = this.group('nebula')[0]; if (nebula) { nebula.warp_strength = strength; this.updateLayer(nebula); } else this.savePreferences(); }
   toggleDepth(inverted: boolean): void { this.starSettings.invertDepth = inverted; const nebula = this.group('nebula')[0]; if (nebula) { nebula.invert_depth = inverted; this.updateLayer(nebula); } else this.savePreferences(); }
   updateNebulaParameter(parameter: 'fine_warp_ratio' | 'confidence_amount', value: number): void { if (parameter === 'fine_warp_ratio') this.starSettings.fineWarpRatio = value; else this.starSettings.confidenceAmount = value; const nebula = this.group('nebula')[0]; if (nebula) { nebula[parameter] = value; this.updateLayer(nebula); } else this.savePreferences(); }
