@@ -35,6 +35,8 @@
 .controls .solo { border-color: #9986ff; color: #d9d1ff; background: #342b64; }
 .refinement p { color: #9990c4; }
 .camera-keyframes { position: absolute; z-index: 4; left: 16px; bottom: 62px; width: 370px; box-sizing: border-box; padding: 9px 10px; border: 1px solid #343b50; border-radius: 9px; background: #0b0f18e8; }
+.camera-keyframes .panel-title { display: flex; justify-content: space-between; margin-bottom: 8px; color: #8d96aa; font-size: 9px; letter-spacing: .1em; }
+.camera-keyframes .panel-title b { color: #cfc6ff; }
 .camera-keyframes button { padding: 7px 5px; font-size: 10px; }
 .camera-keyframes .mark-start { color: #77e5ba; border-color: #286c58; }
 .camera-keyframes .mark-end { color: #ffb58f; border-color: #874d35; }

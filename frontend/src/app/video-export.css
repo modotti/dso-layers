@@ -30,13 +30,13 @@
 .video-export label { color: #7f899c; font-size: 9px; }
 .video-export input, .video-export select, .video-export textarea { box-sizing: border-box; width: 100%; margin-top: 3px; padding: 6px; border: 1px solid #303748; border-radius: 5px; color: #dce3f2; background: #111620; font: inherit; }
 .video-export textarea { resize: vertical; }
-.video-export button { padding: 7px; color: #d5caff; border-color: #6555bd; background: #29204f; font-size: 10px; }
+.video-export button { padding: 7px; color: #d5caff; border-color: #6555bd; background: #29204f; font-size: 10px; min-height: 30px; }
 .video-export .export-button { width: 100%; margin-top: 9px; }
 .text-overlays {
   position: fixed;
   z-index: 4;
   left: 16px;
-  bottom: 410px;
+  bottom: 404px;
   width: 370px;
   max-height: none;
   overflow: visible;
@@ -49,14 +49,15 @@
   box-shadow: 0 10px 28px #0005;
 }
 .text-overlays:not([open]) { overflow: hidden; padding-bottom: 0; }
-.text-overlays summary { position: sticky; top: 0; z-index: 1; margin: 0 -10px; padding: 10px; color: #aeb6c7; background: #0b0f18fa; font-size: 10px; letter-spacing: .08em; cursor: pointer; }
-.text-overlays summary b { float: right; color: #cfc6ff; }
+.text-overlays summary { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; margin: 0 -10px; padding: 10px; color: #8d96aa; background: #0b0f18fa; font-size: 9px; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; list-style: none; }
+.text-overlays summary::-webkit-details-marker { display: none; }
+.text-overlays summary b { margin-left: auto; color: #cfc6ff; }
 .text-tabs, .text-toggles { display: flex; gap: 5px; margin-top: 8px; }
 .text-tabs { align-items: center; flex-wrap: wrap; padding-bottom: 8px; border-bottom: 1px solid #293041; }
-.text-tabs button { flex: 0 0 auto; min-width: 62px; padding: 7px 5px; }
-.text-tabs button.active { border-color: #9b8cff; background: #463b79; }
-.text-tabs .add-text { min-width: 32px; color: #91dfc0; }
-.text-tabs .delete-text { min-width: auto; margin-left: auto; padding-inline: 8px; color: #d88b9f; border-color: #663747; }
+.text-tabs button { flex: 0 0 auto; min-width: 62px; padding: 7px 5px; color: #929cb0; border-color: #303748; background: #151a25; }
+.text-tabs button.active { border-color: #8d7bed; color: #e0d9ff; background: #342b64; }
+.text-tabs .add-text { min-width: 32px; color: #91dfc0; border-color: #303748; background: #151a25; }
+.text-tabs .delete-text { min-width: auto; margin-left: auto; padding-inline: 8px; color: #d88b9f; border-color: #663747; background: #151a25; }
 .text-content { display: block; margin-top: 9px; }
 .text-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 8px; }
 .text-grid label { min-width: 0; padding: 7px; border: 1px solid #252c3b; border-radius: 6px; background: #0e131d; }
