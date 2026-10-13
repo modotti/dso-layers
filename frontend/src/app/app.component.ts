@@ -74,11 +74,11 @@ export class AppComponent implements OnDestroy {
   updateDepthOfField(parameter: 'enabled' | 'focusDistance' | 'aperture' | 'maxBlur', value: number | boolean): void {
     const limits: Record<'focusDistance' | 'aperture' | 'maxBlur', [number, number]> = { focusDistance: [.1, 30], aperture: [0, .01], maxBlur: [0, .02] };
     if (parameter === 'enabled') this.depthOfField = { ...this.depthOfField, enabled: !!value };
-    else { const [minimum, maximum] = limits[parameter]; this.depthOfField = { ...this.depthOfField, [parameter]: Math.max(minimum, Math.min(maximum, Number(value) || 0)) }; }
+    else { const [minimum, maximum] = limits[parameter]; this.depthOfField = { ...this.depthOfField, [parameter]: Math.max(minimum, Math.min(maximum, Number(value) || 0)) }; if (parameter === 'focusDistance') this.viewer?.releaseKeyframeFocus(); }
     this.savePreferences();
   }
-  updateDepthOfFieldMode(focusMode: DepthOfFieldFocusMode): void { const focusLayerId = focusMode === 'layer' && !this.depthOfField.focusLayerId ? (this.project?.scene.layers[0]?.id ?? null) : this.depthOfField.focusLayerId; this.depthOfField = { ...this.depthOfField, focusMode, focusLayerId }; this.savePreferences(); }
-  updateDepthOfFieldLayer(focusLayerId: string): void { this.depthOfField = { ...this.depthOfField, focusLayerId }; this.savePreferences(); }
+  updateDepthOfFieldMode(focusMode: DepthOfFieldFocusMode): void { const focusLayerId = focusMode === 'layer' && !this.depthOfField.focusLayerId ? (this.project?.scene.layers[0]?.id ?? null) : this.depthOfField.focusLayerId; this.depthOfField = { ...this.depthOfField, focusMode, focusLayerId }; this.viewer?.releaseKeyframeFocus(); this.savePreferences(); }
+  updateDepthOfFieldLayer(focusLayerId: string): void { this.depthOfField = { ...this.depthOfField, focusLayerId }; this.viewer?.releaseKeyframeFocus(); this.savePreferences(); }
   toggleSolo(layer: SceneLayer): void { this.soloLayerId = this.soloLayerId === layer.id ? null : layer.id; }
   preview(path: ParallaxPath): void { this.viewer?.startParallaxPreview(path); }
   updatePreference(parameter: 'separation' | 'starPresence' | 'differenceGain', value: number): void { this[parameter] = value; this.savePreferences(); }
@@ -89,7 +89,7 @@ export class AppComponent implements OnDestroy {
   updatePathEasing(value: CameraPathEasing): void { this.replaceActiveMovement({ easing: value }); }
   updatePathFlow(value: CameraPathFlow): void { this.cameraPathFlow = value; this.savePreferences(); }
   updateTransitionMomentum(value: number): void { this.transitionMomentum = Math.max(0, Math.min(.9, Number(value) || 0)); this.savePreferences(); }
-  selectMovement(index: number): void { if (!this.cameraMovements[index]) return; this.activeMovementIndex = index; const pose = this.cameraMovements[index].path.start; if (pose) this.viewer?.goToPose(pose); }
+  selectMovement(index: number): void { if (!this.cameraMovements[index]) return; this.activeMovementIndex = index; const pose = this.cameraMovements[index].path.start ?? this.cameraMovements[index].path.end; if (pose) { this.cameraRoll = pose.roll ?? 0; if (pose.focusDistance !== undefined) this.depthOfField = { ...this.depthOfField, focusDistance: pose.focusDistance }; this.viewer?.goToPose(pose); } }
   addMovement(): void { if (this.cameraMovements.length >= this.maxCameraMovements) return; const previous = this.cameraMovements.at(-1); const start = previous?.path.end ? { ...previous.path.end, position: [...previous.path.end.position] as [number, number, number], target: [...previous.path.end.target] as [number, number, number] } : undefined; this.cameraMovements = [...this.cameraMovements, { id: `movement-${Date.now()}`, path: { start }, duration: previous?.duration ?? 7, easing: previous?.easing ?? 'ease-in-out' }]; this.activeMovementIndex = this.cameraMovements.length - 1; if (start) { this.cameraRoll = start.roll ?? 0; this.viewer?.goToPose(start); } this.savePreferences(); }
   linkActiveMovementToPrevious(): void { const previousEnd = this.cameraMovements[this.activeMovementIndex - 1]?.path.end; if (!previousEnd) return; const start = { ...previousEnd, position: [...previousEnd.position] as [number, number, number], target: [...previousEnd.target] as [number, number, number] }; this.cameraRoll = start.roll ?? 0; this.replaceActiveMovement({ path: { ...this.cameraPath, start } }); this.viewer?.goToPose(start); }
   removeActiveMovement(): void { if (this.cameraMovements.length === 1) return; this.cameraMovements = this.cameraMovements.filter((_, index) => index !== this.activeMovementIndex); this.activeMovementIndex = Math.min(this.activeMovementIndex, this.cameraMovements.length - 1); this.savePreferences(); }

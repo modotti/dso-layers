@@ -128,6 +128,24 @@ def test_webm_video_can_be_converted_to_mp4(monkeypatch):
     monkeypatch.setattr("app.main.subprocess.run", convert)
     response = client.post("/api/v1/videos/convert", files={"video": ("camera.webm", b"recorded-webm", "video/webm")})
     assert response.status_code == 200
+
+
+def test_mjpeg_frames_are_converted_at_the_requested_frame_rate(monkeypatch):
+    monkeypatch.setattr("app.main.shutil.which", lambda _: "/usr/local/bin/ffmpeg")
+
+    def convert(command, **_):
+        assert command[command.index("-f") + 1] == "mjpeg"
+        assert command[command.index("-framerate") + 1] == "24"
+        Path(command[-1]).write_bytes(b"converted-mp4")
+        return SimpleNamespace(returncode=0, stderr="")
+
+    monkeypatch.setattr("app.main.subprocess.run", convert)
+    response = client.post(
+        "/api/v1/videos/convert",
+        files={"video": ("camera.mjpeg", b"\xff\xd8\xff\xd9", "application/x-mjpeg")},
+        data={"input_fps": "24"},
+    )
+    assert response.status_code == 200
     assert response.headers["content-type"] == "video/mp4"
     assert response.content == b"converted-mp4"
 

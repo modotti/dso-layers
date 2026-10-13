@@ -75,6 +75,7 @@ async def _read_upload(upload: UploadFile) -> bytes:
 async def convert_video(
     video: UploadFile = File(...),
     light_effect: str = Form("none", pattern="^(none|soft-reflections)$"),
+    input_fps: int | None = Form(None, ge=1, le=120),
 ) -> Response:
     if shutil.which("ffmpeg") is None:
         raise HTTPException(status_code=503, detail="FFmpeg is not installed on the backend.")
@@ -90,14 +91,16 @@ async def convert_video(
     started_at = perf_counter()
     logger.info("[%s] MP4 conversion started input_bytes=%d light_effect=%s", conversion_id, len(payload), light_effect)
     with tempfile.TemporaryDirectory(prefix="astro-parallax-video-") as directory:
-        input_path = Path(directory) / "input.webm"
+        is_mjpeg = video.content_type == "application/x-mjpeg" or (video.filename or "").lower().endswith(".mjpeg")
+        input_path = Path(directory) / ("input.mjpeg" if is_mjpeg else "input.webm")
         output_path = Path(directory) / "output.mp4"
         input_path.write_bytes(payload)
+        input_options = ["-f", "mjpeg", "-framerate", str(input_fps or 30)] if is_mjpeg else []
         if effect is None:
-            command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(input_path), "-an", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", *MP4_ENCODING_OPTIONS, str(output_path)]
+            command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *input_options, "-i", str(input_path), "-an", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", *MP4_ENCODING_OPTIONS, str(output_path)]
         else:
             filter_graph = f"[1:v][0:v]scale2ref=w=rw:h=rh[effect][base];[base][effect]blend=all_mode={effect['blend_mode']}:all_opacity={effect['opacity']}:shortest=1[mixed];[mixed]scale=trunc(iw/2)*2:trunc(ih/2)*2[v]"
-            command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", str(input_path), "-stream_loop", "-1", "-i", str(effect["path"]), "-filter_complex", filter_graph, "-map", "[v]", "-an", *MP4_ENCODING_OPTIONS, str(output_path)]
+            command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *input_options, "-i", str(input_path), "-stream_loop", "-1", "-i", str(effect["path"]), "-filter_complex", filter_graph, "-map", "[v]", "-an", *MP4_ENCODING_OPTIONS, str(output_path)]
         result = await asyncio.to_thread(subprocess.run, command, capture_output=True, text=True, timeout=300, check=False)
         if result.returncode != 0 or not output_path.exists():
             logger.error("[%s] MP4 conversion failed code=%d error=%s", conversion_id, result.returncode, result.stderr[-1000:])

@@ -33,7 +33,7 @@ export type CameraPathEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out'
 export type CameraPathFlow = 'per-movement' | 'continuous';
 export interface CameraMovement { id: string; path: CameraPathState; duration: number; easing: CameraPathEasing }
 export type VideoLightEffect = 'none' | 'soft-reflections';
-export interface VideoExportSettings { width: number; height: number; fps: number; lightEffect: VideoLightEffect }
+export interface VideoExportSettings { width: number; height: number; fps: number; lightEffect: VideoLightEffect; quality?: 'draft' | 'final' }
 export interface VideoExportState { exporting: boolean; error?: string }
 export type TextOverlayAlignment = 'left' | 'center' | 'right';
 export type TextOverlayFont = 'Cabin' | 'Bitter' | 'DM Sans';

@@ -1,0 +1,107 @@
+import * as THREE from 'three';
+import { CameraMovement, CameraPathFlow, CameraPathPose, TextOverlay } from './models';
+import { cinematicPathPhase } from './camera-path-flow';
+import { interpolateFocusDistance } from './focus-distance';
+import { textOverlayOpacity } from './text-overlay';
+
+export interface TimelineState extends CameraPathPose {
+  timeSeconds: number;
+  complete: boolean;
+  overlays: ReadonlyArray<{ id: string; opacity: number; motionProgress: number }>;
+}
+
+export interface TimelineEvaluatorOptions {
+  flow: CameraPathFlow;
+  transitionMomentum: number;
+  overlays?: readonly TextOverlay[];
+}
+
+const durationOf = (movement: CameraMovement): number => THREE.MathUtils.clamp(movement.duration, 5, 20);
+
+export function timelineDuration(movements: readonly CameraMovement[]): number {
+  return movements.reduce((total, movement) => total + durationOf(movement), 0);
+}
+
+export function easeTimelinePhase(phase: number, easing: CameraMovement['easing']): number {
+  const value = THREE.MathUtils.clamp(phase, 0, 1);
+  if (easing === 'linear') return value;
+  if (easing === 'ease-in') return value ** 3;
+  if (easing === 'ease-out') return 1 - (1 - value) ** 3;
+  return value ** 3 * (value * (value * 6 - 15) + 10);
+}
+
+function overlaysAt(overlays: readonly TextOverlay[], timeSeconds: number): TimelineState['overlays'] {
+  return overlays.map(overlay => ({
+    id: overlay.id,
+    opacity: textOverlayOpacity(overlay, timeSeconds) * THREE.MathUtils.clamp(overlay.opacity, 0, 1),
+    motionProgress: Math.min(1, Math.max(0, timeSeconds - overlay.start) / Math.max(.2, overlay.fadeIn || .8)),
+  }));
+}
+
+function unwrapRolls(poses: readonly CameraPathPose[]): number[] {
+  return poses.map(pose => pose.roll ?? 0).reduce<number[]>((rolls, roll) => {
+    const previous = rolls.at(-1);
+    rolls.push(previous === undefined ? roll : previous + THREE.MathUtils.euclideanModulo(roll - previous + 180, 360) - 180);
+    return rolls;
+  }, []);
+}
+
+function curve(values: readonly [number, number, number][]): THREE.CatmullRomCurve3 {
+  return new THREE.CatmullRomCurve3(values.map(value => new THREE.Vector3().fromArray(value)), false, 'centripetal');
+}
+
+/** Builds a stateless evaluator: a result depends only on its requested timestamp. */
+export function createTimelineEvaluator(
+  movements: readonly CameraMovement[],
+  options: TimelineEvaluatorOptions,
+): (timeSeconds: number) => TimelineState {
+  const valid = movements.filter(movement => movement.path.start && movement.path.end);
+  if (!valid.length || valid.length !== movements.length) throw new Error('Every camera movement needs a start and end pose.');
+  const totalDuration = timelineDuration(valid);
+  const overlays = options.overlays ?? [];
+  const poses = [valid[0].path.start!, ...valid.map(movement => movement.path.end!)];
+
+  if (options.flow === 'continuous') {
+    const positionCurve = curve(poses.map(pose => pose.position));
+    const targetCurve = curve(poses.map(pose => pose.target));
+    const rollCurve = curve(unwrapRolls(poses).map(roll => [roll, 0, 0]));
+    const focusCurve = poses.every(pose => pose.focusDistance !== undefined)
+      ? curve(poses.map(pose => [pose.focusDistance!, 0, 0]))
+      : undefined;
+    return requestedTime => {
+      const timeSeconds = THREE.MathUtils.clamp(requestedTime, 0, totalDuration);
+      const rawPhase = totalDuration ? timeSeconds / totalDuration : 1;
+      const phase = cinematicPathPhase(easeTimelinePhase(rawPhase, 'ease-in-out'), valid.length, options.transitionMomentum);
+      return {
+        timeSeconds,
+        position: positionCurve.getPoint(phase).toArray(),
+        target: targetCurve.getPoint(phase).toArray(),
+        roll: rollCurve.getPoint(phase).x,
+        focusDistance: focusCurve?.getPoint(phase).x,
+        complete: timeSeconds >= totalDuration,
+        overlays: overlaysAt(overlays, timeSeconds),
+      };
+    };
+  }
+
+  const boundaries = valid.reduce<number[]>((values, movement) => [...values, values.at(-1)! + durationOf(movement)], [0]);
+  return requestedTime => {
+    const timeSeconds = THREE.MathUtils.clamp(requestedTime, 0, totalDuration);
+    const movementIndex = Math.min(valid.length - 1, boundaries.findIndex((end, index) => index > 0 && timeSeconds < end) - 1);
+    const index = movementIndex < 0 ? valid.length - 1 : movementIndex;
+    const movement = valid[index];
+    const start = movement.path.start!; const end = movement.path.end!;
+    const phase = easeTimelinePhase((timeSeconds - boundaries[index]) / durationOf(movement), movement.easing);
+    const lerpTuple = (from: [number, number, number], to: [number, number, number]): [number, number, number] => [
+      THREE.MathUtils.lerp(from[0], to[0], phase), THREE.MathUtils.lerp(from[1], to[1], phase), THREE.MathUtils.lerp(from[2], to[2], phase),
+    ];
+    return {
+      timeSeconds,
+      position: lerpTuple(start.position, end.position), target: lerpTuple(start.target, end.target),
+      roll: THREE.MathUtils.lerp(start.roll ?? 0, end.roll ?? 0, phase),
+      focusDistance: interpolateFocusDistance(start.focusDistance, end.focusDistance, phase),
+      complete: timeSeconds >= totalDuration,
+      overlays: overlaysAt(overlays, timeSeconds),
+    };
+  };
+}

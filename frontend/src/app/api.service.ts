@@ -29,8 +29,10 @@ export class ApiService {
 
   deleteProject(projectId: string): void { this.http.delete(`/api/v1/projects/${projectId}`).subscribe(); }
 
-  convertVideo(video: Blob, lightEffect: string = 'none'): Observable<Blob> {
-    const form = new FormData(); form.append('video', video, 'camera-path.webm'); form.append('light_effect', lightEffect);
+  convertVideo(video: Blob, lightEffect: string = 'none', inputFps?: number): Observable<Blob> {
+    const extension = video.type === 'application/x-mjpeg' ? 'mjpeg' : 'webm';
+    const form = new FormData(); form.append('video', video, `camera-path.${extension}`); form.append('light_effect', lightEffect);
+    if (inputFps) form.append('input_fps', String(inputFps));
     return this.http.post('/api/v1/videos/convert', form, { responseType: 'blob' }).pipe(catchError(() => throwError(() => new Error('MP4 conversion failed. Check the backend terminal for the FFmpeg error.'))));
   }
 }

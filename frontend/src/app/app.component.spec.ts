@@ -115,4 +115,25 @@ describe('AppComponent', () => {
     expect(component.cameraPath.start).not.toBe(previousEnd);
     expect(component.cameraRoll).toBe(-16);
   });
+  it('updates the focus distance when selecting a camera movement', () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    const goToPose = jasmine.createSpy('goToPose');
+    component.viewer = { goToPose } as never;
+    component.cameraMovements = [
+      { id: 'one', duration: 5, easing: 'linear', path: { start: { position: [0, 0, 5], target: [0, 0, 0], focusDistance: 4.2 } } },
+      { id: 'two', duration: 5, easing: 'linear', path: { start: { position: [1, 0, 5], target: [0, 0, 0], roll: 18, focusDistance: 9.6 } } },
+    ];
+    component.selectMovement(1);
+    expect(component.depthOfField.focusDistance).toBe(9.6);
+    expect(component.cameraRoll).toBe(18);
+    expect(goToPose).toHaveBeenCalledWith(component.cameraMovements[1].path.start!);
+  });
+  it('releases keyframe focus when the manual distance changes', () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    const releaseKeyframeFocus = jasmine.createSpy('releaseKeyframeFocus');
+    component.viewer = { releaseKeyframeFocus } as never;
+    component.updateDepthOfField('focusDistance', 8.3);
+    expect(component.depthOfField.focusDistance).toBe(8.3);
+    expect(releaseKeyframeFocus).toHaveBeenCalled();
+  });
 });
