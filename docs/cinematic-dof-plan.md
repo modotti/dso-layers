@@ -87,6 +87,8 @@ Validation gate:
 
 ## Phase 4 — quality and performance
 
+Implementation status: in progress. Playback now uses an export-fidelity viewport with the same aspect ratio, camera view offset, bokeh sampling aspect, and overlay coordinate space as the configured video export.
+
 Harden the feature for editing and high-resolution export.
 
 Tasks:
