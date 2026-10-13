@@ -1,4 +1,4 @@
-import { createFrameSchedule, DeterministicRenderer, FrameSink, RenderJobManifest, runRenderJob } from './offline-renderer';
+import { createFrameSchedule, DeterministicRenderer, FrameSink, RenderJobManifest, runRenderJob, videoRenderDimensions } from './offline-renderer';
 
 describe('createFrameSchedule', () => {
   it('creates exact timestamped frames without adding the final still', () => {
@@ -10,6 +10,12 @@ describe('createFrameSchedule', () => {
   });
 
   it('uses the rounded duration contract', () => expect(createFrameSchedule(1.51, 30).length).toBe(45));
+
+  it('bounds draft resolution while preserving full final resolution', () => {
+    expect(videoRenderDimensions(3840, 2160, 'draft')).toEqual({ width: 1280, height: 720 });
+    expect(videoRenderDimensions(1080, 1920, 'draft')).toEqual({ width: 406, height: 720 });
+    expect(videoRenderDimensions(3840, 2160, 'final')).toEqual({ width: 3840, height: 2160 });
+  });
 
   it('keeps timestamps exact when rendering is slower than playback', async () => {
     const timestamps: number[] = []; let clock = 0; let disposed = false;

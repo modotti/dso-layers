@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import shutil
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
+from fractions import Fraction
 from pathlib import Path
 from time import perf_counter
 from uuid import uuid4
@@ -51,6 +53,8 @@ class VideoRenderSession:
     process: subprocess.Popen[bytes]
     directory: tempfile.TemporaryDirectory[str]
     output_path: Path
+    fps: int
+    expected_frames: int | None
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     frames: int = 0
 
@@ -87,10 +91,11 @@ async def _read_upload(upload: UploadFile) -> bytes:
 @app.post("/api/v1/video-renders")
 async def start_video_render(
     fps: int = Form(..., ge=1, le=120),
+    expected_frames: int | None = Form(None, ge=1, le=216000),
     light_effect: str = Form("none", pattern="^(none|soft-reflections)$"),
 ) -> dict[str, str]:
-    if shutil.which("ffmpeg") is None:
-        raise HTTPException(status_code=503, detail="FFmpeg is not installed on the backend.")
+    if shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None:
+        raise HTTPException(status_code=503, detail="FFmpeg and FFprobe must be installed on the backend.")
     effect = VIDEO_EFFECTS.get(light_effect)
     if effect is not None and not effect["path"].is_file():
         raise HTTPException(status_code=503, detail=f'The video asset for effect "{light_effect}" is not installed on the backend.')
@@ -104,7 +109,7 @@ async def start_video_render(
         filter_graph = f"[1:v][0:v]scale2ref=w=rw:h=rh[effect][base];[base][effect]blend=all_mode={effect['blend_mode']}:all_opacity={effect['opacity']}:shortest=1[mixed];[mixed]scale=trunc(iw/2)*2:trunc(ih/2)*2[v]"
         command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *input_options, "-stream_loop", "-1", "-i", str(effect["path"]), "-filter_complex", filter_graph, "-map", "[v]", "-an", *MP4_ENCODING_OPTIONS, str(output_path)]
     process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    video_render_sessions[render_id] = VideoRenderSession(process, directory, output_path)
+    video_render_sessions[render_id] = VideoRenderSession(process, directory, output_path, fps, expected_frames)
     return {"renderId": render_id}
 
 
@@ -126,7 +131,7 @@ async def append_video_frame(render_id: str, frame: UploadFile = File(...)) -> R
 
 
 @app.post("/api/v1/video-renders/{render_id}/finish")
-async def finish_video_render(render_id: str) -> Response:
+async def finish_video_render(render_id: str, expected_frames: int | None = Form(None, ge=1, le=216000)) -> Response:
     session = video_render_sessions.pop(render_id, None)
     if session is None:
         raise HTTPException(status_code=404, detail="Video render job not found.")
@@ -138,7 +143,17 @@ async def finish_video_render(render_id: str) -> Response:
         if return_code != 0 or not session.frames or not session.output_path.exists():
             logger.error("[%s] streamed MP4 render failed code=%d frames=%d error=%s", render_id, return_code, session.frames, error[-1000:])
             raise HTTPException(status_code=422, detail="FFmpeg could not finalize the streamed video.")
-        return Response(session.output_path.read_bytes(), media_type="video/mp4", headers={"Content-Disposition": 'attachment; filename="camera-path.mp4"'})
+        expected_frames = session.expected_frames or expected_frames
+        if expected_frames is None or session.frames != expected_frames:
+            raise HTTPException(status_code=422, detail=f"Render received {session.frames} frames; expected {expected_frames or 'an explicit frame count'}.")
+        probe = await asyncio.to_thread(_probe_video_output, session.output_path)
+        duration_tolerance = 1 / session.fps
+        expected_duration = expected_frames / session.fps
+        if probe["frames"] != expected_frames or abs(probe["fps"] - session.fps) > .01 or abs(probe["duration"] - expected_duration) >= duration_tolerance:
+            logger.error("[%s] output validation failed expected_frames=%d expected_fps=%d probe=%s", render_id, expected_frames, session.fps, probe)
+            raise HTTPException(status_code=422, detail="The encoded video failed deterministic cadence validation.")
+        headers = {"Content-Disposition": 'attachment; filename="camera-path.mp4"', "X-Video-Frames": str(probe["frames"]), "X-Video-Fps": f'{probe["fps"]:.3f}', "X-Video-Duration": f'{probe["duration"]:.6f}'}
+        return Response(session.output_path.read_bytes(), media_type="video/mp4", headers=headers)
     finally:
         session.directory.cleanup()
 
@@ -155,6 +170,18 @@ async def cancel_video_render(render_id: str) -> Response:
                 session.process.kill()
         session.directory.cleanup()
     return Response(status_code=204)
+
+
+def _probe_video_output(path: Path) -> dict[str, float | int]:
+    command = ["ffprobe", "-v", "error", "-count_frames", "-select_streams", "v:0", "-show_entries", "stream=nb_read_frames,avg_frame_rate,duration", "-of", "json", str(path)]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=60, check=False)
+    if result.returncode != 0:
+        raise HTTPException(status_code=422, detail="FFprobe could not validate the encoded video.")
+    try:
+        stream = json.loads(result.stdout)["streams"][0]
+        return {"frames": int(stream["nb_read_frames"]), "fps": float(Fraction(stream["avg_frame_rate"])), "duration": float(stream["duration"])}
+    except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as error:
+        raise HTTPException(status_code=422, detail="FFprobe returned incomplete video metadata.") from error
 
 
 @app.post("/api/v1/videos/convert")

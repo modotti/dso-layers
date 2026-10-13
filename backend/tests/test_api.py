@@ -170,13 +170,14 @@ def test_video_render_session_streams_frames_and_returns_mp4(monkeypatch):
         def kill(self): self.returncode = -9
 
     monkeypatch.setattr("app.main.subprocess.Popen", Process)
+    monkeypatch.setattr("app.main._probe_video_output", lambda _: {"frames": 2, "fps": 24.0, "duration": 2 / 24})
     started = client.post("/api/v1/video-renders", data={"fps": "24", "light_effect": "none"})
     assert started.status_code == 200
     render_id = started.json()["renderId"]
     for payload in (b"\xff\xd8one\xff\xd9", b"\xff\xd8two\xff\xd9"):
         response = client.post(f"/api/v1/video-renders/{render_id}/frames", files={"frame": ("frame.jpg", payload, "image/jpeg")})
         assert response.status_code == 204
-    finished = client.post(f"/api/v1/video-renders/{render_id}/finish")
+    finished = client.post(f"/api/v1/video-renders/{render_id}/finish", data={"expected_frames": "2"})
     assert finished.status_code == 200
     assert finished.content == b"streamed-mp4"
 

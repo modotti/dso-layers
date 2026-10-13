@@ -10,6 +10,11 @@ export interface DeterministicRenderer {
 }
 export interface FrameScheduleEntry { index: number; timeSeconds: number; timestampMicroseconds: number; durationMicroseconds: number }
 
+export function videoRenderDimensions(width: number, height: number, quality: RenderQuality): { width: number; height: number } {
+  const scale = quality === 'draft' ? Math.min(1, 1280 / width, 720 / height) : 1;
+  return { width: Math.max(2, Math.round(width * scale / 2) * 2), height: Math.max(2, Math.round(height * scale / 2) * 2) };
+}
+
 export function createFrameSchedule(durationSeconds: number, fps: number): FrameScheduleEntry[] {
   const safeFps = Math.max(1, Math.round(fps));
   const count = Math.max(0, Math.round(Math.max(0, durationSeconds) * safeFps));
