@@ -18,6 +18,11 @@ describe('AppComponent', () => {
     first.updatePreference('starPresence', 1.6);
     first.updateWarp(0.035);
     first.updateLighting('intensity', .11);
+    first.updateDepthOfField('enabled', true);
+    first.updateDepthOfFieldMode('manual');
+    first.updateDepthOfField('focusDistance', 7.4);
+    first.updateDepthOfField('aperture', .004);
+    first.updateDepthOfField('maxBlur', .012);
     first.updateCameraRoll(-28);
     first.updatePathDuration(16);
     first.updatePathEasing('ease-out');
@@ -33,6 +38,7 @@ describe('AppComponent', () => {
     expect(restored.starPresence).toBe(1.6);
     expect(restored.starSettings.warpStrength).toBe(0.035);
     expect(restored.lighting.intensity).toBe(.11);
+    expect(restored.depthOfField).toEqual({ enabled: true, focusMode: 'manual', focusDistance: 7.4, aperture: .004, maxBlur: .012 });
     expect(restored.cameraRoll).toBe(-28);
     expect(restored.cameraPathDuration).toBe(16);
     expect(restored.cameraPathEasing).toBe('ease-out');
@@ -43,6 +49,13 @@ describe('AppComponent', () => {
     expect(restored.videoExport.lightEffect).toBe('soft-reflections');
     expect(restored.textOverlays[0].text).toBe('Horsehead Nebula');
     expect(restored.textOverlays[0].fadeIn).toBe(1.2);
+  });
+  it('bounds cinematic depth of field settings', () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    component.updateDepthOfField('focusDistance', 100);
+    component.updateDepthOfField('aperture', -1);
+    component.updateDepthOfField('maxBlur', .5);
+    expect(component.depthOfField).toEqual({ enabled: false, focusMode: 'starless', focusDistance: 30, aperture: 0, maxBlur: .02 });
   });
   it('inherits the previous caption settings without copying its text', () => {
     const component = TestBed.createComponent(AppComponent).componentInstance;

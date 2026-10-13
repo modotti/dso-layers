@@ -1,13 +1,18 @@
 import { AfterViewInit, Component, ElementRef, Input, NgZone, OnChanges, OnDestroy, Output, EventEmitter, SimpleChanges, ViewChild, inject } from '@angular/core';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ApiService } from '../api.service';
-import { CameraMovement, CameraPathEasing, CameraPathFlow, CameraPathPose, CameraPathState, DepthBrushSettings, EditorHistoryState, GpuDiagnostics, LightingSettings, ParallaxPath, SceneDocument, SceneLayer, TextOverlay, VideoExportSettings, VideoExportState, ViewerMode } from '../models';
+import { CameraMovement, CameraPathEasing, CameraPathFlow, CameraPathPose, CameraPathState, DepthBrushSettings, DepthOfFieldSettings, EditorHistoryState, GpuDiagnostics, LightingSettings, ParallaxPath, SceneDocument, SceneLayer, TextOverlay, VideoExportSettings, VideoExportState, ViewerMode } from '../models';
 import { createRandomCameraSequence } from '../random-camera-sequence';
 import { videoCaptureBitrate } from '../video-export';
 import { effectiveLayerDepth } from '../layer-depth';
 import { cinematicPathPhase } from '../camera-path-flow';
 import { textOverlayOpacity } from '../text-overlay';
+import { focusDistanceAlongView, perspectiveDepthForDistance } from '../focus-distance';
+import { AuthoredBokehPass } from './authored-bokeh-pass';
 
 interface EditSnapshot { depth: Uint8ClampedArray; confidence: Uint8ClampedArray }
 interface EditableMaps {
@@ -30,6 +35,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() soloLayerId: string | null = null;
   @Input() differenceGain = 8;
   @Input() lighting: LightingSettings = { intensity: .06, relief: 1.2, direction: 135 };
+  @Input() depthOfField: DepthOfFieldSettings = { enabled: false, focusMode: 'starless', focusDistance: 5, aperture: .002, maxBlur: .006 };
   @Input() cameraPath: CameraPathState = {};
   @Input() cameraMovements: CameraMovement[] = [];
   @Input() cameraRoll = 0;
@@ -55,6 +61,8 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   private readonly zone = inject(NgZone);
   private readonly api = inject(ApiService);
   private renderer?: THREE.WebGLRenderer; private world = new THREE.Scene(); private comparisonWorld = new THREE.Scene(); private comparisonCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1); private overlayWorld = new THREE.Scene(); private overlayCamera = new THREE.OrthographicCamera(0, 1, 1, 0, -1, 1); private overlayMeshes: TextOverlayMesh[] = []; private overlayWidth = 0; private overlayHeight = 0; private overlayX = 0; private overlayY = 0; private draggingOverlay?: { item: TextOverlayMesh; offsetX: number; offsetY: number }; private camera?: THREE.PerspectiveCamera; private controls?: OrbitControls;
+  private composer?: EffectComposer; private bokehPass?: AuthoredBokehPass; private dofDepthWorld = new THREE.Scene(); private dofDepthMeshes = new Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>>();
+  private readonly focusPoint = new THREE.Vector3(); private readonly focusDirection = new THREE.Vector3();
   private meshes = new Map<string, THREE.Mesh<THREE.PlaneGeometry, THREE.Material>>(); private comparison?: THREE.Mesh<THREE.PlaneGeometry, THREE.ShaderMaterial>; private comparisonOwnsTexture = true;
   private frame = 0; private observer?: ResizeObserver; private previewStarted = 0; private previewPath: ParallaxPath = 'horizontal'; private zoomStarted = 0; private zoomFrom = 5; private zoomTo = 5; private zoomDirection = new THREE.Vector3(0, 0, 1); private driftZoom = false; private driftPhaseX = 0; private driftPhaseY = 0; private driftAmplitudeX = .4; private driftAmplitudeY = .28; private cameraPathStarted = 0; private playbackSequenceStarted = 0; private playbackMovements: CameraMovement[] = []; private playbackMovementIndex = 0; private activeCameraRoll = 0; private comparisonRequest = 0; private sceneLoadGeneration = 0; private loadedSceneKey = '';
   private continuousPositionCurve?: THREE.CatmullRomCurve3; private continuousTargetCurve?: THREE.CatmullRomCurve3; private continuousRollCurve?: THREE.CatmullRomCurve3; private continuousDuration = 0;
@@ -69,11 +77,12 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     if (changes['differenceGain'] && this.comparison) this.comparison.material.uniforms['gain'].value = this.mode === 'difference' ? this.differenceGain : 1;
     if (changes['editorEnabled'] && this.controls) { this.controls.enabled = !this.editorEnabled; if (!this.editorEnabled) { this.drawing = false; this.cursorVisible = false; } }
     if (changes['videoExport']) { this.updateExportFrame(); this.rebuildTextOverlays(); }
+    if (changes['depthOfField']) this.syncDepthOfField();
     if (changes['textOverlays'] || changes['activeTextOverlayId']) this.rebuildTextOverlays();
     if (changes['cameraRoll'] && !this.cameraPathStarted) this.activeCameraRoll = THREE.MathUtils.clamp(this.cameraRoll, -180, 180);
     this.applyMode();
   }
-  ngOnDestroy(): void { this.cancelVideoExport(); this.sceneLoadGeneration++; cancelAnimationFrame(this.frame); this.observer?.disconnect(); this.controls?.dispose(); if (this.renderer) { const canvas = this.renderer.domElement; canvas.removeEventListener('pointerdown', this.onPointerDown, true); canvas.removeEventListener('pointermove', this.onPointerMove); canvas.removeEventListener('pointerup', this.onPointerUp); canvas.removeEventListener('pointercancel', this.onPointerUp); canvas.removeEventListener('pointerleave', this.onPointerLeave); } this.disposeComparison(); this.disposeMeshes(); this.disposeTextOverlays(); this.renderer?.dispose(); }
+  ngOnDestroy(): void { this.cancelVideoExport(); this.sceneLoadGeneration++; cancelAnimationFrame(this.frame); this.observer?.disconnect(); this.controls?.dispose(); if (this.renderer) { const canvas = this.renderer.domElement; canvas.removeEventListener('pointerdown', this.onPointerDown, true); canvas.removeEventListener('pointermove', this.onPointerMove); canvas.removeEventListener('pointerup', this.onPointerUp); canvas.removeEventListener('pointercancel', this.onPointerUp); canvas.removeEventListener('pointerleave', this.onPointerLeave); } this.disposeComparison(); this.disposeMeshes(); this.disposeTextOverlays(); this.disposePostProcessing(); this.renderer?.dispose(); }
   resetCamera(): void { if (!this.camera || !this.scene || !this.controls) return; this.previewStarted = 0; this.zoomStarted = 0; this.cameraPathStarted = 0; this.driftZoom = false; this.activeCameraRoll = 0; this.camera.position.fromArray(this.scene.camera.position); this.camera.up.set(0, 1, 0); this.controls.target.fromArray(this.scene.camera.target); this.camera.lookAt(this.controls.target); this.camera.updateMatrixWorld(true); this.controls.update(); this.cameraRollChange.emit(0); }
   startParallaxPreview(path: ParallaxPath = 'horizontal'): void { this.resetCamera(); this.previewPath = path; this.previewStarted = performance.now(); }
   startZoom(direction: 'in' | 'out'): void { if (!this.camera || !this.controls) return; this.previewStarted = 0; this.driftZoom = false; this.zoomFrom = this.camera.position.distanceTo(this.controls.target); this.zoomTo = direction === 'in' ? this.controls.minDistance : this.controls.maxDistance; this.zoomDirection.copy(this.camera.position).sub(this.controls.target).normalize(); this.zoomStarted = performance.now(); }
@@ -96,7 +105,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     this.exportRestorePose = { position: this.camera.position.toArray() as [number, number, number], target: this.controls.target.toArray() as [number, number, number], roll: this.activeCameraRoll };
     canvas.style.opacity = '0';
     const viewportBounds = this.host.nativeElement.getBoundingClientRect(); this.updateExportFrame(viewportBounds.width, viewportBounds.height);
-    this.exportPixelRatio = this.renderer.getPixelRatio(); this.exportFov = this.camera.fov; this.renderer.setDrawingBufferSize(this.videoExport.width, this.videoExport.height, 1); this.rebuildTextOverlays();
+    this.exportPixelRatio = this.renderer.getPixelRatio(); this.exportFov = this.camera.fov; this.renderer.setDrawingBufferSize(this.videoExport.width, this.videoExport.height, 1); this.resizePostProcessing(this.videoExport.width, this.videoExport.height, 1); this.rebuildTextOverlays();
     const frameX = (viewportBounds.width - this.exportFrameWidth) / 2; const frameY = (viewportBounds.height - this.exportFrameHeight) / 2; this.camera.fov = this.exportFov; this.camera.aspect = viewportBounds.width / Math.max(1, viewportBounds.height); this.camera.setViewOffset(viewportBounds.width, viewportBounds.height, frameX, frameY, this.exportFrameWidth, this.exportFrameHeight); this.camera.updateProjectionMatrix();
     const firstPose = movements[0].path.start!; this.camera.position.fromArray(firstPose.position); this.controls.target.fromArray(firstPose.target); this.activeCameraRoll = firstPose.roll ?? 0; this.controls.enabled = false; this.controls.update(); this.applyCameraRoll();
     this.setVideoDithering(true); this.renderFrame(0);
@@ -114,7 +123,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   private setPlaybackMode(active: boolean, notify = true): void { if (!active && !this.exporting) requestAnimationFrame(() => { if (!this.cameraPathStarted) this.playbackSequenceStarted = 0; }); if (notify) this.zone.run(() => this.playbackState.emit(active)); }
   private applyCameraRoll(): void { if (this.camera && this.activeCameraRoll) this.camera.rotateZ(THREE.MathUtils.degToRad(this.activeCameraRoll)); }
   private finishVideoRecording(): void { const recorder = this.exportRecorder; if (!recorder || recorder.state === 'inactive') { this.restoreAfterVideoExport(this.exportError || 'The browser stopped recording unexpectedly.'); return; } recorder.stop(); window.clearTimeout(this.exportStopFallback); this.exportStopFallback = window.setTimeout(() => { if (this.exporting) this.restoreAfterVideoExport('The browser did not finalize the video file.'); }, 2000); }
-  private restoreRendererBehindCover(): void { if (!this.renderer || !this.camera || !this.controls) return; this.setVideoDithering(false); const bounds = this.host.nativeElement.getBoundingClientRect(); this.renderer.setPixelRatio(this.exportPixelRatio); this.renderer.setSize(Math.round(bounds.width), Math.round(bounds.height), false); this.rebuildTextOverlays(); this.camera.fov = this.exportFov; this.camera.aspect = bounds.width / Math.max(1, bounds.height); this.camera.clearViewOffset(); if (this.exportRestorePose) { this.camera.position.fromArray(this.exportRestorePose.position); this.controls.target.fromArray(this.exportRestorePose.target); this.activeCameraRoll = this.exportRestorePose.roll ?? 0; } this.camera.updateProjectionMatrix(); this.controls.update(); this.applyCameraRoll(); }
+  private restoreRendererBehindCover(): void { if (!this.renderer || !this.camera || !this.controls) return; this.setVideoDithering(false); const bounds = this.host.nativeElement.getBoundingClientRect(); const width = Math.round(bounds.width); const height = Math.round(bounds.height); this.renderer.setPixelRatio(this.exportPixelRatio); this.renderer.setSize(width, height, false); this.resizePostProcessing(width, height, this.exportPixelRatio); this.rebuildTextOverlays(); this.camera.fov = this.exportFov; this.camera.aspect = bounds.width / Math.max(1, bounds.height); this.camera.clearViewOffset(); if (this.exportRestorePose) { this.camera.position.fromArray(this.exportRestorePose.position); this.controls.target.fromArray(this.exportRestorePose.target); this.activeCameraRoll = this.exportRestorePose.roll ?? 0; } this.camera.updateProjectionMatrix(); this.controls.update(); this.applyCameraRoll(); }
   private restoreAfterVideoExport(error?: string): void { if (!this.exporting) return; window.clearTimeout(this.exportStopFallback); window.clearTimeout(this.exportWatchdog); this.exportStopFallback = this.exportWatchdog = undefined; this.setVideoDithering(false); const renderer = this.renderer; const camera = this.camera; const controls = this.controls; this.exportRecorder = undefined; if (renderer) { renderer.domElement.style.opacity = '1'; renderer.setPixelRatio(this.exportPixelRatio); } if (camera && controls) { camera.fov = this.exportFov; if (this.exportRestorePose) { camera.position.fromArray(this.exportRestorePose.position); controls.target.fromArray(this.exportRestorePose.target); this.activeCameraRoll = this.exportRestorePose.roll ?? 0; } controls.enabled = !this.editorEnabled; controls.update(); this.applyCameraRoll(); } this.zone.run(() => { this.exporting = false; this.exportPreviewUrl = ''; this.cameraPathStarted = 0; this.playbackSequenceStarted = 0; this.cameraRollChange.emit(this.activeCameraRoll); this.resize(); this.videoExportState.emit({ exporting: false, error }); }); }
   private downloadVideo(blob: Blob, extension: 'mp4' | 'webm'): void { const name = (this.scene?.name ?? 'camera-path').replace(/[^a-z0-9-_]+/gi, '-').replace(/^-|-$/g, '') || 'camera-path'; const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${name}-camera-path.${extension}`; anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 1000); }
   private cancelVideoExport(): void { if (!this.exporting) return; window.clearTimeout(this.exportStopFallback); window.clearTimeout(this.exportWatchdog); this.setVideoDithering(false); this.exporting = false; if (this.exportRecorder?.state !== 'inactive') this.exportRecorder?.stop(); this.videoExportState.emit({ exporting: false }); }
@@ -129,6 +138,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     Object.assign(this.renderer.domElement.style, { display: 'block', position: 'absolute', inset: '0', width: '100%', height: '100%' });
     this.camera = new THREE.PerspectiveCamera(45, 1, .1, 100); this.camera.position.set(0, 0, 5);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement); this.controls.enableDamping = true; this.controls.minDistance = .5; this.controls.maxDistance = 30; this.controls.minPolarAngle = .001; this.controls.maxPolarAngle = Math.PI - .001;
+    this.syncDepthOfField();
     this.controls.addEventListener('start', () => { this.previewStarted = 0; this.zoomStarted = 0; this.cameraPathStarted = 0; });
     this.renderer.domElement.addEventListener('pointerdown', this.onPointerDown, true); this.renderer.domElement.addEventListener('pointermove', this.onPointerMove); this.renderer.domElement.addEventListener('pointerup', this.onPointerUp); this.renderer.domElement.addEventListener('pointercancel', this.onPointerUp); this.renderer.domElement.addEventListener('pointerleave', this.onPointerLeave);
     this.observer = new ResizeObserver(() => this.resize()); this.observer.observe(element); requestAnimationFrame(() => this.resize());
@@ -136,7 +146,46 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     this.zone.runOutsideAngular(() => this.animate());
     this.emitDiagnostics();
   }
-  private resize(): void { if (!this.renderer || !this.camera || this.exporting) return; const bounds = this.host.nativeElement.getBoundingClientRect(); const w = Math.round(bounds.width); const h = Math.round(bounds.height); if (!w || !h) return; this.renderer.setSize(w, h, false); this.updateExportFrame(w, h); this.rebuildTextOverlays(); this.camera.aspect = w / h; this.camera.clearViewOffset(); this.camera.filmOffset = 0; this.camera.updateProjectionMatrix(); this.sizeComparison(w / h); this.applyLayers(); }
+  private resize(): void { if (!this.renderer || !this.camera || this.exporting) return; const bounds = this.host.nativeElement.getBoundingClientRect(); const w = Math.round(bounds.width); const h = Math.round(bounds.height); if (!w || !h) return; this.renderer.setSize(w, h, false); this.resizePostProcessing(w, h, this.renderer.getPixelRatio()); this.updateExportFrame(w, h); this.rebuildTextOverlays(); this.camera.aspect = w / h; this.camera.clearViewOffset(); this.camera.filmOffset = 0; this.camera.updateProjectionMatrix(); this.sizeComparison(w / h); this.applyLayers(); }
+  private syncDepthOfField(): void {
+    if (!this.depthOfField.enabled) { this.disposePostProcessing(); return; }
+    if (!this.renderer || !this.camera) return;
+    if (!this.composer || !this.bokehPass) {
+      this.composer = new EffectComposer(this.renderer);
+      this.composer.addPass(new RenderPass(this.world, this.camera));
+      this.bokehPass = new AuthoredBokehPass(this.dofDepthWorld, this.camera, { focus: this.depthOfField.focusDistance, aperture: this.depthOfField.aperture, maxblur: this.depthOfField.maxBlur });
+      this.composer.addPass(this.bokehPass);
+      this.composer.addPass(new OutputPass());
+      const size = this.renderer.getSize(new THREE.Vector2());
+      this.resizePostProcessing(size.x, size.y, this.renderer.getPixelRatio());
+    }
+    const uniforms = this.bokehPass.uniforms as Record<string, THREE.IUniform<number>>;
+    uniforms['aperture'].value = this.depthOfField.aperture;
+    uniforms['maxblur'].value = this.depthOfField.maxBlur;
+    this.updateDepthOfFieldFocus();
+  }
+  private updateDepthOfFieldFocus(): void {
+    if (!this.bokehPass || !this.camera) return;
+    let focusDistance = this.depthOfField.focusDistance;
+    if (this.depthOfField.focusMode !== 'manual') {
+      if (this.depthOfField.focusMode === 'starless') {
+        const layer = this.scene?.layers.find(candidate => candidate.type === 'nebula');
+        const mesh = layer ? this.meshes.get(layer.id) : undefined;
+        if (mesh) mesh.getWorldPosition(this.focusPoint); else if (this.controls) this.focusPoint.copy(this.controls.target); else return;
+      } else if (this.controls) this.focusPoint.copy(this.controls.target); else return;
+      this.camera.getWorldDirection(this.focusDirection);
+      focusDistance = focusDistanceAlongView(this.camera.position, this.focusDirection, this.focusPoint, this.camera.near);
+    }
+    (this.bokehPass.uniforms as Record<string, THREE.IUniform<number>>)['focus'].value = focusDistance;
+    this.camera.getWorldDirection(this.focusDirection);
+    for (const depthMesh of this.dofDepthMeshes.values()) {
+      depthMesh.getWorldPosition(this.focusPoint);
+      const layerDistance = focusDistanceAlongView(this.camera.position, this.focusDirection, this.focusPoint, this.camera.near);
+      depthMesh.material.uniforms['encodedDepth'].value = perspectiveDepthForDistance(layerDistance, this.camera.near, this.camera.far);
+    }
+  }
+  private resizePostProcessing(width: number, height: number, pixelRatio: number): void { if (!this.composer) return; this.composer.setPixelRatio(pixelRatio); this.composer.setSize(width, height); }
+  private disposePostProcessing(): void { if (!this.composer) return; for (const pass of this.composer.passes) pass.dispose(); this.composer.dispose(); this.composer = undefined; this.bokehPass = undefined; }
   private updateExportFrame(viewportWidth?: number, viewportHeight?: number): void { const bounds = this.host.nativeElement.getBoundingClientRect(); const hostWidth = viewportWidth ?? bounds.width; const hostHeight = viewportHeight ?? bounds.height; const availableWidth = Math.max(1, hostWidth * .8); const availableHeight = Math.max(1, hostHeight * .8); const aspect = this.videoExport.width / Math.max(1, this.videoExport.height); this.exportFrameWidth = Math.min(availableWidth, availableHeight * aspect); this.exportFrameHeight = this.exportFrameWidth / aspect; }
   private sceneKey(): string { return this.scene?.layers.map(layer => `${layer.id}:${layer.texture_url}:${layer.depth_texture_url ?? ''}:${layer.confidence_texture_url ?? ''}`).join('|') ?? ''; }
   private async loadScene(): Promise<void> {
@@ -172,6 +221,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
         material = this.createStarMaterial(texture, layer.opacity);
       }
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material); mesh.renderOrder = layer.order; this.world.add(mesh); this.meshes.set(layer.id, mesh);
+      const depthMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.createDofDepthMaterial(texture, layer.type === 'stars', layer.opacity)); depthMesh.renderOrder = layer.order; this.dofDepthWorld.add(depthMesh); this.dofDepthMeshes.set(layer.id, depthMesh);
     }));
     if (generation !== this.sceneLoadGeneration) return;
     if (this.comparisonUrl) await this.loadComparison(); this.applyLayers(); this.applyMode();
@@ -198,6 +248,30 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
           #include <dithering_fragment>
         }`,
       transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    });
+  }
+
+  private createDofDepthMaterial(texture: THREE.Texture, alphaMasked: boolean, opacity: number): THREE.ShaderMaterial {
+    return new THREE.ShaderMaterial({
+      uniforms: { map: { value: texture }, opacity: { value: opacity }, presence: { value: this.starPresence }, alphaMasked: { value: alphaMasked ? 1 : 0 }, encodedDepth: { value: 1 } },
+      vertexShader: `varying vec2 vUv;
+        void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+      fragmentShader: `uniform sampler2D map;
+        uniform float opacity;
+        uniform float presence;
+        uniform float alphaMasked;
+        uniform float encodedDepth;
+        varying vec2 vUv;
+        void main() {
+          float alpha = opacity;
+          if (alphaMasked > 0.5) {
+            float sourceAlpha = texture2D(map, vUv).a;
+            alpha *= 1.0 - pow(max(0.0, 1.0 - sourceAlpha), max(0.01, presence));
+          }
+          if (alpha < 0.002) discard;
+          gl_FragColor = vec4(vec3(encodedDepth), 1.0);
+        }`,
+      depthTest: true, depthWrite: true, side: THREE.DoubleSide,
     });
   }
 
@@ -304,8 +378,8 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     mesh.position.set(position.x, position.y, depth); mesh.scale.set(width * scale.x, height * scale.y, scale.z);
   }
   private lightDirection(): THREE.Vector2 { const radians = THREE.MathUtils.degToRad(this.lighting.direction); return new THREE.Vector2(Math.cos(radians), Math.sin(radians)); }
-  private applyLayers(): void { if (!this.scene) return; const anchor = this.scene.layers.find(layer => layer.type === 'nebula'); const anchorDepth = anchor?.depth ?? 0; const anchorPositionZ = anchor?.transform.position.z ?? 0; for (const layer of this.scene.layers) { const mesh = this.meshes.get(layer.id); if (!mesh) continue; mesh.visible = this.mode === '3d' && layer.visible && (!this.soloLayerId || this.soloLayerId === layer.id); if (mesh.material instanceof THREE.ShaderMaterial) { const uniforms = mesh.material.uniforms; uniforms['opacity'].value = layer.opacity; if (uniforms['presence']) uniforms['presence'].value = this.starPresence; if (uniforms['strength']) { uniforms['strength'].value = layer.warp_strength ?? 0; uniforms['invertDepth'].value = layer.invert_depth ? 1 : 0; uniforms['fineWarpRatio'].value = layer.fine_warp_ratio ?? .25; uniforms['confidenceAmount'].value = layer.confidence_amount ?? .7; uniforms['lightIntensity'].value = this.lighting.intensity; uniforms['relief'].value = this.lighting.relief; uniforms['lightDirection'].value.copy(this.lightDirection()); } } this.sizePlane(mesh, effectiveLayerDepth(layer, anchorDepth, anchorPositionZ, this.separation), layer.transform.position, layer.transform.scale); } }
-  private applyMode(): void { if (!this.scene) return; for (const layer of this.scene.layers) { const mesh = this.meshes.get(layer.id); if (mesh) mesh.visible = this.mode === '3d' && layer.visible && (!this.soloLayerId || this.soloLayerId === layer.id); } }
+  private applyLayers(): void { if (!this.scene) return; const anchor = this.scene.layers.find(layer => layer.type === 'nebula'); const anchorDepth = anchor?.depth ?? 0; const anchorPositionZ = anchor?.transform.position.z ?? 0; for (const layer of this.scene.layers) { const mesh = this.meshes.get(layer.id); if (!mesh) continue; const visible = this.mode === '3d' && layer.visible && (!this.soloLayerId || this.soloLayerId === layer.id); mesh.visible = visible; if (mesh.material instanceof THREE.ShaderMaterial) { const uniforms = mesh.material.uniforms; uniforms['opacity'].value = layer.opacity; if (uniforms['presence']) uniforms['presence'].value = this.starPresence; if (uniforms['strength']) { uniforms['strength'].value = layer.warp_strength ?? 0; uniforms['invertDepth'].value = layer.invert_depth ? 1 : 0; uniforms['fineWarpRatio'].value = layer.fine_warp_ratio ?? .25; uniforms['confidenceAmount'].value = layer.confidence_amount ?? .7; uniforms['lightIntensity'].value = this.lighting.intensity; uniforms['relief'].value = this.lighting.relief; uniforms['lightDirection'].value.copy(this.lightDirection()); } } const effectiveDepth = effectiveLayerDepth(layer, anchorDepth, anchorPositionZ, this.separation); this.sizePlane(mesh, effectiveDepth, layer.transform.position, layer.transform.scale); const depthMesh = this.dofDepthMeshes.get(layer.id); if (depthMesh) { depthMesh.visible = visible; depthMesh.material.uniforms['opacity'].value = layer.opacity; depthMesh.material.uniforms['presence'].value = this.starPresence; this.sizePlane(depthMesh, effectiveDepth, layer.transform.position, layer.transform.scale); } } }
+  private applyMode(): void { if (!this.scene) return; for (const layer of this.scene.layers) { const visible = this.mode === '3d' && layer.visible && (!this.soloLayerId || this.soloLayerId === layer.id); const mesh = this.meshes.get(layer.id); if (mesh) mesh.visible = visible; const depthMesh = this.dofDepthMeshes.get(layer.id); if (depthMesh) depthMesh.visible = visible; } }
   private onPointerDown = (event: PointerEvent): void => {
     if (!this.editorEnabled && !this.exporting && this.scene && this.mode === '3d' && event.button === 0) { const point = this.overlayPointer(event); const item = this.overlayMeshes.find(candidate => candidate.overlay.id === this.activeTextOverlayId); if (point && item?.mesh.visible && Math.abs(point.x - item.mesh.position.x) <= item.mesh.geometry.parameters.width / 2 && Math.abs(point.y - item.baseY) <= item.mesh.geometry.parameters.height / 2) { event.preventDefault(); event.stopImmediatePropagation(); this.draggingOverlay = { item, offsetX: point.x - item.mesh.position.x, offsetY: point.y - item.baseY }; if (this.controls) this.controls.enabled = false; this.renderer?.domElement.setPointerCapture(event.pointerId); return; } }
     if (!this.editorEnabled || event.button !== 0) return; const uv = this.pointerUv(event); if (!uv || !this.editable) return;
@@ -396,7 +470,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   private disposeTextOverlays(): void { this.draggingOverlay = undefined; for (const item of this.overlayMeshes) { this.overlayWorld.remove(item.mesh); item.mesh.geometry.dispose(); item.mesh.material.map?.dispose(); item.mesh.material.dispose(); if (item.selection) { this.overlayWorld.remove(item.selection); item.selection.geometry.dispose(); (item.selection.material as THREE.Material).dispose(); } } this.overlayMeshes = []; }
   private updateTextOverlays(elapsed: number | null): void { for (const item of this.overlayMeshes) { const timelineOpacity = elapsed === null ? (item.overlay.enabled ? 1 : 0) : textOverlayOpacity(item.overlay, elapsed); const opacity = timelineOpacity * THREE.MathUtils.clamp(item.overlay.opacity, 0, 1); item.mesh.material.opacity = opacity; const local = elapsed === null ? 1 : Math.max(0, elapsed - item.overlay.start); const progress = Math.min(1, local / Math.max(.2, item.overlay.fadeIn || .8)); item.mesh.position.y = item.baseY + (item.overlay.motion ? (progress - 1) * this.overlayHeight * .012 : 0); item.mesh.visible = opacity > 0; if (item.selection) { item.selection.position.set(item.mesh.position.x, item.mesh.position.y, 0); item.selection.visible = elapsed === null && !this.exporting && item.mesh.visible; } } }
   private updatePlaybackTimer(elapsed: number | null): void { const timer = this.playbackTimer.nativeElement; const visible = elapsed !== null && !this.exporting; timer.classList.toggle('visible', visible); if (visible) timer.textContent = `${elapsed.toFixed(1)}s`; }
-  private renderFrame(elapsed: number | null): void { if (!this.renderer || !this.camera) return; this.updateTextOverlays(elapsed); this.renderer.clear(); if (this.mode === '3d') this.renderer.render(this.world, this.camera); else this.renderer.render(this.comparisonWorld, this.comparisonCamera); if (this.scene && this.mode === '3d' && this.overlayMeshes.length) { this.renderer.clearDepth(); this.renderer.render(this.overlayWorld, this.overlayCamera); } }
+  private renderFrame(elapsed: number | null): void { if (!this.renderer || !this.camera) return; this.updateTextOverlays(elapsed); if (this.mode === '3d' && this.depthOfField.enabled && this.composer) { this.updateDepthOfFieldFocus(); this.composer.render(); } else { this.renderer.clear(); if (this.mode === '3d') this.renderer.render(this.world, this.camera); else this.renderer.render(this.comparisonWorld, this.comparisonCamera); } if (this.scene && this.mode === '3d' && this.overlayMeshes.length) { this.renderer.clearDepth(); this.renderer.render(this.overlayWorld, this.overlayCamera); } }
   private animate = (): void => {
     this.frame = requestAnimationFrame(this.animate);
     if (this.previewStarted && this.camera && this.controls) { const elapsed = performance.now() - this.previewStarted; const duration = 4200; if (elapsed < duration) { const phase = elapsed / duration; const envelope = Math.sin(phase * Math.PI); const angle = phase * Math.PI * 2; const horizontalRange = this.previewPath === 'orbit' ? .72 : .82; const verticalRange = this.previewPath === 'orbit' ? .48 : .58; const x = this.previewPath === 'vertical' ? 0 : Math.sin(angle) * horizontalRange * envelope; const y = this.previewPath === 'horizontal' ? 0 : (this.previewPath === 'orbit' ? Math.cos(angle) : Math.sin(angle)) * verticalRange * envelope; this.camera.position.set(this.controls.target.x + x, this.controls.target.y + y, this.scene?.camera.position[2] ?? 5); this.controls.update(); } else { this.previewStarted = 0; this.resetCamera(); } }
@@ -410,5 +484,5 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     this.updatePlaybackTimer(playbackElapsed);
     this.renderFrame(playbackElapsed);
   };
-  private disposeMeshes(): void { for (const mesh of this.meshes.values()) { this.world.remove(mesh); mesh.geometry.dispose(); if (mesh.material instanceof THREE.ShaderMaterial) { (mesh.material.uniforms['map'].value as THREE.Texture).dispose(); const depthMap = mesh.material.uniforms['depthMap']?.value as THREE.Texture | undefined; const invertedDepthMap = mesh.material.uniforms['invertedDepthMap']?.value as THREE.Texture | undefined; const confidenceMap = mesh.material.uniforms['confidenceMap']?.value as THREE.Texture | undefined; depthMap?.dispose(); if (invertedDepthMap && invertedDepthMap !== depthMap) invertedDepthMap.dispose(); if (confidenceMap && confidenceMap !== depthMap && confidenceMap !== invertedDepthMap) confidenceMap.dispose(); } mesh.material.dispose(); } this.meshes.clear(); this.editable = undefined; this.emitHistory(); }
+  private disposeMeshes(): void { for (const depthMesh of this.dofDepthMeshes.values()) { this.dofDepthWorld.remove(depthMesh); depthMesh.geometry.dispose(); depthMesh.material.dispose(); } this.dofDepthMeshes.clear(); for (const mesh of this.meshes.values()) { this.world.remove(mesh); mesh.geometry.dispose(); if (mesh.material instanceof THREE.ShaderMaterial) { (mesh.material.uniforms['map'].value as THREE.Texture).dispose(); const depthMap = mesh.material.uniforms['depthMap']?.value as THREE.Texture | undefined; const invertedDepthMap = mesh.material.uniforms['invertedDepthMap']?.value as THREE.Texture | undefined; const confidenceMap = mesh.material.uniforms['confidenceMap']?.value as THREE.Texture | undefined; depthMap?.dispose(); if (invertedDepthMap && invertedDepthMap !== depthMap) invertedDepthMap.dispose(); if (confidenceMap && confidenceMap !== depthMap && confidenceMap !== invertedDepthMap) confidenceMap.dispose(); } mesh.material.dispose(); } this.meshes.clear(); this.editable = undefined; this.emitHistory(); }
 }
