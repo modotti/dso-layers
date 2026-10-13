@@ -34,7 +34,8 @@ export type CameraPathFlow = 'per-movement' | 'continuous';
 export interface CameraMovement { id: string; path: CameraPathState; duration: number; easing: CameraPathEasing }
 export type VideoLightEffect = 'none' | 'soft-reflections';
 export interface VideoExportSettings { width: number; height: number; fps: number; lightEffect: VideoLightEffect; quality?: 'draft' | 'final' }
-export interface VideoExportState { exporting: boolean; error?: string }
+export interface VideoRenderBenchmark { width: number; height: number; fps: number; quality: 'draft' | 'final'; frames: number; renderSeconds: number; finalizeSeconds: number; renderFps: number; gpu: string }
+export interface VideoExportState { exporting: boolean; error?: string; benchmark?: VideoRenderBenchmark }
 export type TextOverlayAlignment = 'left' | 'center' | 'right';
 export type TextOverlayFont = 'Cabin' | 'Bitter' | 'DM Sans';
 export interface TextOverlay {

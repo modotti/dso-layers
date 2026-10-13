@@ -26,6 +26,7 @@ from .store import MediaAsset, MemoryProjectStore
 
 MAX_UPLOAD_BYTES = 256 * 1024 * 1024
 MAX_VIDEO_UPLOAD_BYTES = 512 * 1024 * 1024
+VIDEO_RENDER_IDLE_TIMEOUT_SECONDS = 15 * 60
 MP4_ENCODING_OPTIONS = [
     "-c:v", "libx264",
     "-preset", "medium",
@@ -57,9 +58,38 @@ class VideoRenderSession:
     expected_frames: int | None
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     frames: int = 0
+    last_activity: float = field(default_factory=perf_counter)
+    watchdog: asyncio.Task[None] | None = None
 
 
 video_render_sessions: dict[str, VideoRenderSession] = {}
+
+
+async def _dispose_video_render(session: VideoRenderSession) -> None:
+    if session.process.poll() is None:
+        session.process.terminate()
+        try:
+            await asyncio.to_thread(session.process.wait, 5)
+        except subprocess.TimeoutExpired:
+            session.process.kill()
+    session.directory.cleanup()
+
+
+async def _watch_video_render(render_id: str, session: VideoRenderSession) -> None:
+    try:
+        while True:
+            await asyncio.sleep(min(60, VIDEO_RENDER_IDLE_TIMEOUT_SECONDS))
+            if video_render_sessions.get(render_id) is not session:
+                return
+            if perf_counter() - session.last_activity >= VIDEO_RENDER_IDLE_TIMEOUT_SECONDS:
+                video_render_sessions.pop(render_id, None)
+                await _dispose_video_render(session)
+                logger.warning("[%s] abandoned video render expired after %ds", render_id, VIDEO_RENDER_IDLE_TIMEOUT_SECONDS)
+                return
+    except asyncio.CancelledError:
+        return
+
+
 app = FastAPI(title="Paralastro API", version="0.5.0")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:4200"], allow_methods=["*"], allow_headers=["*"])
 
@@ -109,7 +139,9 @@ async def start_video_render(
         filter_graph = f"[1:v][0:v]scale2ref=w=rw:h=rh[effect][base];[base][effect]blend=all_mode={effect['blend_mode']}:all_opacity={effect['opacity']}:shortest=1[mixed];[mixed]scale=trunc(iw/2)*2:trunc(ih/2)*2[v]"
         command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *input_options, "-stream_loop", "-1", "-i", str(effect["path"]), "-filter_complex", filter_graph, "-map", "[v]", "-an", *MP4_ENCODING_OPTIONS, str(output_path)]
     process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    video_render_sessions[render_id] = VideoRenderSession(process, directory, output_path, fps, expected_frames)
+    session = VideoRenderSession(process, directory, output_path, fps, expected_frames)
+    video_render_sessions[render_id] = session
+    session.watchdog = asyncio.create_task(_watch_video_render(render_id, session))
     return {"renderId": render_id}
 
 
@@ -127,6 +159,7 @@ async def append_video_frame(render_id: str, frame: UploadFile = File(...)) -> R
         await asyncio.to_thread(session.process.stdin.write, payload)
         await asyncio.to_thread(session.process.stdin.flush)
         session.frames += 1
+        session.last_activity = perf_counter()
     return Response(status_code=204)
 
 
@@ -135,6 +168,8 @@ async def finish_video_render(render_id: str, expected_frames: int | None = Form
     session = video_render_sessions.pop(render_id, None)
     if session is None:
         raise HTTPException(status_code=404, detail="Video render job not found.")
+    if session.watchdog is not None:
+        session.watchdog.cancel()
     try:
         if session.process.stdin is not None:
             session.process.stdin.close()
@@ -162,13 +197,9 @@ async def finish_video_render(render_id: str, expected_frames: int | None = Form
 async def cancel_video_render(render_id: str) -> Response:
     session = video_render_sessions.pop(render_id, None)
     if session is not None:
-        if session.process.poll() is None:
-            session.process.terminate()
-            try:
-                await asyncio.to_thread(session.process.wait, 5)
-            except subprocess.TimeoutExpired:
-                session.process.kill()
-        session.directory.cleanup()
+        if session.watchdog is not None:
+            session.watchdog.cancel()
+        await _dispose_video_render(session)
     return Response(status_code=204)
 
 
