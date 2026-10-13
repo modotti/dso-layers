@@ -2,10 +2,14 @@
   "name": "astro-parallax-studio",
   "version": "0.1.0",
   "private": true,
+  "main": "desktop/main.cjs",
   "scripts": {
     "start": "ng serve --proxy-config proxy.conf.json",
     "build": "ng build",
-    "test": "ng test"
+    "test": "ng test",
+    "desktop:build": "ng build",
+    "desktop:start": "npm run desktop:build && electron .",
+    "desktop:test-worker": "node desktop/render-worker.integration.cjs"
   },
   "dependencies": {
     "@angular/common": "^20.3.0",
@@ -24,6 +28,7 @@
     "@types/jasmine": "^5.1.9",
     "@types/three": "^0.180.0",
     "@webgpu/types": "^0.1.64",
+    "electron": "^44.7.0",
     "jasmine-core": "^5.9.0",
     "karma": "^6.4.4",
     "karma-chrome-launcher": "^3.2.0",
