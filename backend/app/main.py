@@ -5,6 +5,7 @@ import logging
 import shutil
 import subprocess
 import tempfile
+from dataclasses import dataclass, field
 from pathlib import Path
 from time import perf_counter
 from uuid import uuid4
@@ -43,6 +44,18 @@ VIDEO_EFFECTS = {
 }
 logger = logging.getLogger("uvicorn.error").getChild("processing")
 store = MemoryProjectStore()
+
+
+@dataclass
+class VideoRenderSession:
+    process: subprocess.Popen[bytes]
+    directory: tempfile.TemporaryDirectory[str]
+    output_path: Path
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    frames: int = 0
+
+
+video_render_sessions: dict[str, VideoRenderSession] = {}
 app = FastAPI(title="Paralastro API", version="0.5.0")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:4200"], allow_methods=["*"], allow_headers=["*"])
 
@@ -69,6 +82,79 @@ async def _read_upload(upload: UploadFile) -> bytes:
     if not payload:
         raise ImageValidationError("empty_file", "Uploaded images cannot be empty.")
     return payload
+
+
+@app.post("/api/v1/video-renders")
+async def start_video_render(
+    fps: int = Form(..., ge=1, le=120),
+    light_effect: str = Form("none", pattern="^(none|soft-reflections)$"),
+) -> dict[str, str]:
+    if shutil.which("ffmpeg") is None:
+        raise HTTPException(status_code=503, detail="FFmpeg is not installed on the backend.")
+    effect = VIDEO_EFFECTS.get(light_effect)
+    if effect is not None and not effect["path"].is_file():
+        raise HTTPException(status_code=503, detail=f'The video asset for effect "{light_effect}" is not installed on the backend.')
+    render_id = str(uuid4())
+    directory = tempfile.TemporaryDirectory(prefix="astro-parallax-render-")
+    output_path = Path(directory.name) / "output.mp4"
+    input_options = ["-f", "mjpeg", "-framerate", str(fps), "-i", "pipe:0"]
+    if effect is None:
+        command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *input_options, "-an", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", *MP4_ENCODING_OPTIONS, str(output_path)]
+    else:
+        filter_graph = f"[1:v][0:v]scale2ref=w=rw:h=rh[effect][base];[base][effect]blend=all_mode={effect['blend_mode']}:all_opacity={effect['opacity']}:shortest=1[mixed];[mixed]scale=trunc(iw/2)*2:trunc(ih/2)*2[v]"
+        command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *input_options, "-stream_loop", "-1", "-i", str(effect["path"]), "-filter_complex", filter_graph, "-map", "[v]", "-an", *MP4_ENCODING_OPTIONS, str(output_path)]
+    process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    video_render_sessions[render_id] = VideoRenderSession(process, directory, output_path)
+    return {"renderId": render_id}
+
+
+@app.post("/api/v1/video-renders/{render_id}/frames", status_code=204)
+async def append_video_frame(render_id: str, frame: UploadFile = File(...)) -> Response:
+    session = video_render_sessions.get(render_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Video render job not found.")
+    payload = await frame.read(24 * 1024 * 1024 + 1)
+    if not payload.startswith(b"\xff\xd8") or len(payload) > 24 * 1024 * 1024:
+        raise HTTPException(status_code=422, detail="The rendered frame is not a valid JPEG or is too large.")
+    async with session.lock:
+        if session.process.poll() is not None or session.process.stdin is None:
+            raise HTTPException(status_code=422, detail="FFmpeg stopped before accepting all frames.")
+        await asyncio.to_thread(session.process.stdin.write, payload)
+        await asyncio.to_thread(session.process.stdin.flush)
+        session.frames += 1
+    return Response(status_code=204)
+
+
+@app.post("/api/v1/video-renders/{render_id}/finish")
+async def finish_video_render(render_id: str) -> Response:
+    session = video_render_sessions.pop(render_id, None)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Video render job not found.")
+    try:
+        if session.process.stdin is not None:
+            session.process.stdin.close()
+        return_code = await asyncio.to_thread(session.process.wait, 300)
+        error = session.process.stderr.read().decode(errors="replace") if session.process.stderr else ""
+        if return_code != 0 or not session.frames or not session.output_path.exists():
+            logger.error("[%s] streamed MP4 render failed code=%d frames=%d error=%s", render_id, return_code, session.frames, error[-1000:])
+            raise HTTPException(status_code=422, detail="FFmpeg could not finalize the streamed video.")
+        return Response(session.output_path.read_bytes(), media_type="video/mp4", headers={"Content-Disposition": 'attachment; filename="camera-path.mp4"'})
+    finally:
+        session.directory.cleanup()
+
+
+@app.delete("/api/v1/video-renders/{render_id}", status_code=204)
+async def cancel_video_render(render_id: str) -> Response:
+    session = video_render_sessions.pop(render_id, None)
+    if session is not None:
+        if session.process.poll() is None:
+            session.process.terminate()
+            try:
+                await asyncio.to_thread(session.process.wait, 5)
+            except subprocess.TimeoutExpired:
+                session.process.kill()
+        session.directory.cleanup()
+    return Response(status_code=204)
 
 
 @app.post("/api/v1/videos/convert")

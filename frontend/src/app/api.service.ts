@@ -29,6 +29,11 @@ export class ApiService {
 
   deleteProject(projectId: string): void { this.http.delete(`/api/v1/projects/${projectId}`).subscribe(); }
 
+  startVideoRender(fps: number, lightEffect: string): Observable<{ renderId: string }> { const form = new FormData(); form.append('fps', String(fps)); form.append('light_effect', lightEffect); return this.http.post<{ renderId: string }>('/api/v1/video-renders', form); }
+  appendVideoFrame(renderId: string, frame: Blob): Observable<void> { const form = new FormData(); form.append('frame', frame, 'frame.jpg'); return this.http.post<void>(`/api/v1/video-renders/${renderId}/frames`, form); }
+  finishVideoRender(renderId: string): Observable<Blob> { return this.http.post(`/api/v1/video-renders/${renderId}/finish`, null, { responseType: 'blob' }); }
+  cancelVideoRender(renderId: string): Observable<void> { return this.http.delete<void>(`/api/v1/video-renders/${renderId}`); }
+
   convertVideo(video: Blob, lightEffect: string = 'none', inputFps?: number): Observable<Blob> {
     const extension = video.type === 'application/x-mjpeg' ? 'mjpeg' : 'webm';
     const form = new FormData(); form.append('video', video, `camera-path.${extension}`); form.append('light_effect', lightEffect);

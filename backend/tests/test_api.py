@@ -150,6 +150,37 @@ def test_mjpeg_frames_are_converted_at_the_requested_frame_rate(monkeypatch):
     assert response.content == b"converted-mp4"
 
 
+def test_video_render_session_streams_frames_and_returns_mp4(monkeypatch):
+    monkeypatch.setattr("app.main.shutil.which", lambda _: "/usr/local/bin/ffmpeg")
+
+    class Input:
+        def __init__(self): self.payload = bytearray()
+        def write(self, value): self.payload.extend(value)
+        def flush(self): pass
+        def close(self): pass
+
+    class Error:
+        def read(self): return b""
+
+    class Process:
+        def __init__(self, command, **_): self.command = command; self.stdin = Input(); self.stderr = Error(); self.returncode = None
+        def poll(self): return self.returncode
+        def wait(self, _timeout): Path(self.command[-1]).write_bytes(b"streamed-mp4"); self.returncode = 0; return 0
+        def terminate(self): self.returncode = -15
+        def kill(self): self.returncode = -9
+
+    monkeypatch.setattr("app.main.subprocess.Popen", Process)
+    started = client.post("/api/v1/video-renders", data={"fps": "24", "light_effect": "none"})
+    assert started.status_code == 200
+    render_id = started.json()["renderId"]
+    for payload in (b"\xff\xd8one\xff\xd9", b"\xff\xd8two\xff\xd9"):
+        response = client.post(f"/api/v1/video-renders/{render_id}/frames", files={"frame": ("frame.jpg", payload, "image/jpeg")})
+        assert response.status_code == 204
+    finished = client.post(f"/api/v1/video-renders/{render_id}/finish")
+    assert finished.status_code == 200
+    assert finished.content == b"streamed-mp4"
+
+
 def test_video_light_effect_is_composited_with_ffmpeg(monkeypatch, tmp_path):
     effect_path = tmp_path / "soft-reflections.mp4"
     effect_path.write_bytes(b"effect-video")
