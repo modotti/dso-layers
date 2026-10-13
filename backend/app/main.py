@@ -92,7 +92,7 @@ async def _watch_video_render(render_id: str, session: VideoRenderSession) -> No
         return
 
 
-app = FastAPI(title="Paralastro API", version="0.5.0")
+app = FastAPI(title="Paralastro API", version="0.8.0")
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:4200"], allow_methods=["*"], allow_headers=["*"])
 
 
