@@ -3,12 +3,47 @@ import { Pass, FullScreenQuad } from 'three/examples/jsm/postprocessing/Pass.js'
 import { BokehShader } from 'three/examples/jsm/shaders/BokehShader.js';
 
 export interface AuthoredBokehOptions { focus: number; aperture: number; maxblur: number }
+export type BokehQuality = 'preview' | 'high';
+
+const previewFragmentShader = /* glsl */`
+  #include <common>
+  #include <packing>
+  varying vec2 vUv;
+  uniform sampler2D tColor;
+  uniform sampler2D tDepth;
+  uniform float focus;
+  uniform float aperture;
+  uniform float maxblur;
+  uniform float nearClip;
+  uniform float farClip;
+  uniform float aspect;
+  void main() {
+    float depth = texture2D(tDepth, vUv).x;
+    float viewZ = perspectiveDepthToViewZ(depth, nearClip, farClip);
+    vec2 blur = vec2(clamp((focus + viewZ) * aperture, -maxblur, maxblur));
+    vec2 ratio = vec2(1.0, aspect);
+    vec4 color = texture2D(tColor, vUv);
+    color += texture2D(tColor, vUv + vec2( 0.0000,  0.4000) * ratio * blur);
+    color += texture2D(tColor, vUv + vec2( 0.3464,  0.2000) * ratio * blur);
+    color += texture2D(tColor, vUv + vec2( 0.3464, -0.2000) * ratio * blur);
+    color += texture2D(tColor, vUv + vec2( 0.0000, -0.4000) * ratio * blur);
+    color += texture2D(tColor, vUv + vec2(-0.3464, -0.2000) * ratio * blur);
+    color += texture2D(tColor, vUv + vec2(-0.3464,  0.2000) * ratio * blur);
+    color += texture2D(tColor, vUv + vec2( 0.0000,  0.8000) * ratio * blur);
+    color += texture2D(tColor, vUv + vec2( 0.6928,  0.4000) * ratio * blur);
+    color += texture2D(tColor, vUv + vec2( 0.6928, -0.4000) * ratio * blur);
+    color += texture2D(tColor, vUv + vec2( 0.0000, -0.8000) * ratio * blur);
+    color += texture2D(tColor, vUv + vec2(-0.6928, -0.4000) * ratio * blur);
+    color += texture2D(tColor, vUv + vec2(-0.6928,  0.4000) * ratio * blur);
+    gl_FragColor = vec4((color / 13.0).rgb, 1.0);
+  }`;
 
 /** BokehPass variant that consumes an alpha-aware depth scene instead of overriding the color scene materials. */
 export class AuthoredBokehPass extends Pass {
   readonly uniforms: Record<string, THREE.IUniform>;
   private readonly depthTarget = new THREE.WebGLRenderTarget(1, 1, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, type: THREE.HalfFloatType });
-  private readonly material: THREE.ShaderMaterial;
+  private readonly previewMaterial: THREE.ShaderMaterial;
+  private readonly highMaterial: THREE.ShaderMaterial;
   private readonly quad: FullScreenQuad;
   private readonly previousClearColor = new THREE.Color();
 
@@ -23,14 +58,22 @@ export class AuthoredBokehPass extends Pass {
     this.uniforms['maxblur'].value = options.maxblur;
     this.uniforms['nearClip'].value = camera.near;
     this.uniforms['farClip'].value = camera.far;
-    this.material = new THREE.ShaderMaterial({
+    this.previewMaterial = new THREE.ShaderMaterial({
+      defines: { ...BokehShader.defines, DEPTH_PACKING: 0 },
+      uniforms: this.uniforms,
+      vertexShader: BokehShader.vertexShader,
+      fragmentShader: previewFragmentShader,
+    });
+    this.highMaterial = new THREE.ShaderMaterial({
       defines: { ...BokehShader.defines, DEPTH_PACKING: 0 },
       uniforms: this.uniforms,
       vertexShader: BokehShader.vertexShader,
       fragmentShader: BokehShader.fragmentShader,
     });
-    this.quad = new FullScreenQuad(this.material);
+    this.quad = new FullScreenQuad(this.previewMaterial);
   }
+
+  setQuality(quality: BokehQuality): void { this.quad.material = quality === 'high' ? this.highMaterial : this.previewMaterial; }
 
   override render(renderer: THREE.WebGLRenderer, writeBuffer: THREE.WebGLRenderTarget, readBuffer: THREE.WebGLRenderTarget): void {
     renderer.getClearColor(this.previousClearColor);
@@ -58,5 +101,5 @@ export class AuthoredBokehPass extends Pass {
     this.depthTarget.setSize(width, height);
   }
 
-  override dispose(): void { this.depthTarget.dispose(); this.material.dispose(); this.quad.dispose(); }
+  override dispose(): void { this.depthTarget.dispose(); this.previewMaterial.dispose(); this.highMaterial.dispose(); this.quad.dispose(); }
 }

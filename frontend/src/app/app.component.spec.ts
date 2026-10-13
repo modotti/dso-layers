@@ -57,6 +57,15 @@ describe('AppComponent', () => {
     component.updateDepthOfField('maxBlur', .5);
     expect(component.depthOfField).toEqual({ enabled: false, focusMode: 'starless', focusLayerId: null, focusDistance: 30, aperture: 0, maxBlur: .02 });
   });
+  it('warns when real-time DOF export reaches a high workload', () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    expect(component.highRealtimeExportLoad).toBeFalse();
+    component.updateDepthOfField('enabled', true);
+    expect(component.highRealtimeExportLoad).toBeTrue();
+    component.updateVideoExport('width', 1280);
+    component.updateVideoExport('height', 720);
+    expect(component.highRealtimeExportLoad).toBeFalse();
+  });
   it('inherits the previous caption settings without copying its text', () => {
     const component = TestBed.createComponent(AppComponent).componentInstance;
     component.addTextOverlay();

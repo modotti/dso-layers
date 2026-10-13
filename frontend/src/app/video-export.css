@@ -32,6 +32,7 @@
 .video-export textarea { resize: vertical; }
 .video-export button { padding: 7px; color: #d5caff; border-color: #6555bd; background: #29204f; font-size: 10px; min-height: 30px; }
 .video-export .export-button { width: 100%; margin-top: 9px; }
+.video-export .realtime-warning { margin: 9px 0 0; padding: 7px 8px; border: 1px solid #66552f; border-radius: 5px; color: #d5bd82; background: #211c10; font-size: 9px; line-height: 1.4; }
 .text-overlays {
   position: fixed;
   z-index: 4;

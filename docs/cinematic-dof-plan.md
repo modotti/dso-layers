@@ -87,7 +87,7 @@ Validation gate:
 
 ## Phase 4 — quality and performance
 
-Implementation status: in progress. The normal 3D composition view and playback now use an export-fidelity viewport with the same aspect ratio, camera view offset, bokeh sampling aspect, and overlay coordinate space as the configured video export. Depth editing and comparison modes retain the larger workspace.
+Implementation status: in progress. The normal 3D composition view and playback now use an export-fidelity viewport with the same aspect ratio, camera view offset, bokeh sampling aspect, and overlay coordinate space as the configured video export. Depth editing and comparison modes retain the larger workspace. Interactive rendering uses a 13-tap bokeh kernel while export retains the 41-tap kernel; high real-time export workloads surface a warning.
 
 Harden the feature for editing and high-resolution export.
 
