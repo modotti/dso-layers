@@ -12,6 +12,7 @@ export class AppComponent implements OnDestroy {
   private readonly api = inject(ApiService);
   starless: File | null = null; stars: File | null = null; depthMap: File | null = null; project: ProjectResponse | null = null; busy = false; error = ''; mode: ViewerMode = '3d'; separation = 1; starPresence = 1;
   editorOpen = false;
+  sidebarCollapsed = false;
   brush: DepthBrushSettings = { tool: 'near', size: 80, strength: .25 };
   lighting: LightingSettings = { intensity: .06, relief: 1.2, direction: 135 };
   depthOfField: DepthOfFieldSettings = { enabled: false, focusMode: 'starless', focusLayerId: null, focusDistance: 5, aperture: .002, maxBlur: .006 };

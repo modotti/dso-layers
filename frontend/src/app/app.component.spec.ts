@@ -11,6 +11,15 @@ describe('AppComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Bring your astrophotography to life through motion.');
     expect(fixture.nativeElement.textContent).toContain('Depth map · optional');
     expect(fixture.nativeElement.textContent).toContain('Reveal the space inside your image');
+    expect(fixture.nativeElement.textContent).toContain('Build settings');
+  });
+  it('collapses the editing sidebar to free viewport space', () => {
+    const fixture = TestBed.createComponent(AppComponent); fixture.detectChanges();
+    const button = fixture.nativeElement.querySelector('[aria-label="Collapse controls"]') as HTMLButtonElement;
+    button.click(); fixture.detectChanges();
+    expect(fixture.componentInstance.sidebarCollapsed).toBeTrue();
+    expect(fixture.nativeElement.querySelector('.workspace').classList).toContain('sidebar-collapsed');
+    expect(fixture.nativeElement.querySelector('[aria-label="Expand controls"]')).toBeTruthy();
   });
   it('restores saved viewer preferences', () => {
     const first = TestBed.createComponent(AppComponent).componentInstance;
