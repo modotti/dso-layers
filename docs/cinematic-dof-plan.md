@@ -87,7 +87,7 @@ Validation gate:
 
 ## Phase 4 — quality and performance
 
-Implementation status: in progress. Playback now uses an export-fidelity viewport with the same aspect ratio, camera view offset, bokeh sampling aspect, and overlay coordinate space as the configured video export.
+Implementation status: in progress. The normal 3D composition view and playback now use an export-fidelity viewport with the same aspect ratio, camera view offset, bokeh sampling aspect, and overlay coordinate space as the configured video export. Depth editing and comparison modes retain the larger workspace.
 
 Harden the feature for editing and high-resolution export.
 
