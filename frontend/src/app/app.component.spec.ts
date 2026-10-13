@@ -40,6 +40,7 @@ describe('AppComponent', () => {
     first.updateVideoExport('width', 2560);
     first.updateVideoExport('fps', 60);
     first.updateVideoLightEffect('soft-reflections');
+    first.toggleSidebar();
     first.addTextOverlay();
     first.updateTextOverlay({ text: 'Horsehead Nebula', fadeIn: 1.2 });
     const restored = TestBed.createComponent(AppComponent).componentInstance;
@@ -56,6 +57,7 @@ describe('AppComponent', () => {
     expect(restored.videoExport.width).toBe(2560);
     expect(restored.videoExport.fps).toBe(60);
     expect(restored.videoExport.lightEffect).toBe('soft-reflections');
+    expect(restored.sidebarCollapsed).toBeTrue();
     expect(restored.textOverlays[0].text).toBe('Horsehead Nebula');
     expect(restored.textOverlays[0].fadeIn).toBe(1.2);
   });

@@ -4,6 +4,8 @@ const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
 
+const DESKTOP_FRONTEND_PORT = 43127;
+
 let backend;
 let worker;
 let server;
@@ -33,7 +35,10 @@ function startFrontendServer() {
     const safePath = candidate.startsWith(root) && fs.existsSync(candidate) && fs.statSync(candidate).isFile() ? candidate : path.join(root, 'index.html');
     response.writeHead(200, { 'content-type': mime[path.extname(safePath)] ?? 'application/octet-stream' }); fs.createReadStream(safePath).pipe(response);
   });
-  return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve(server.address().port)));
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(DESKTOP_FRONTEND_PORT, '127.0.0.1', () => resolve(DESKTOP_FRONTEND_PORT));
+  });
 }
 
 function startWorker(window) {
