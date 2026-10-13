@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import shutil
 import subprocess
 import tempfile
@@ -27,6 +28,8 @@ from .store import MediaAsset, MemoryProjectStore
 MAX_UPLOAD_BYTES = 256 * 1024 * 1024
 MAX_VIDEO_UPLOAD_BYTES = 512 * 1024 * 1024
 VIDEO_RENDER_IDLE_TIMEOUT_SECONDS = 15 * 60
+FFMPEG_PATH = os.environ.get("PARALASTRO_FFMPEG_PATH", "ffmpeg")
+FFPROBE_PATH = os.environ.get("PARALASTRO_FFPROBE_PATH", "ffprobe")
 MP4_ENCODING_OPTIONS = [
     "-c:v", "libx264",
     "-preset", "medium",
@@ -126,7 +129,7 @@ async def start_video_render(
     expected_frames: int | None = Form(None, ge=1, le=216000),
     light_effect: str = Form("none", pattern="^(none|soft-reflections)$"),
 ) -> dict[str, str]:
-    if shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None:
+    if shutil.which(FFMPEG_PATH) is None or shutil.which(FFPROBE_PATH) is None:
         raise HTTPException(status_code=503, detail="FFmpeg and FFprobe must be installed on the backend.")
     effect = VIDEO_EFFECTS.get(light_effect)
     if effect is not None and not effect["path"].is_file():
@@ -136,10 +139,10 @@ async def start_video_render(
     output_path = Path(directory.name) / "output.mp4"
     input_options = ["-f", "mjpeg", "-framerate", str(fps), "-i", "pipe:0"]
     if effect is None:
-        command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *input_options, "-an", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", *MP4_ENCODING_OPTIONS, str(output_path)]
+        command = [FFMPEG_PATH, "-hide_banner", "-loglevel", "error", "-y", *input_options, "-an", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", *MP4_ENCODING_OPTIONS, str(output_path)]
     else:
         filter_graph = f"[1:v][0:v]scale2ref=w=rw:h=rh[effect][base];[base][effect]blend=all_mode={effect['blend_mode']}:all_opacity={effect['opacity']}:shortest=1[mixed];[mixed]scale=trunc(iw/2)*2:trunc(ih/2)*2[v]"
-        command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *input_options, "-stream_loop", "-1", "-i", str(effect["path"]), "-filter_complex", filter_graph, "-map", "[v]", "-an", *MP4_ENCODING_OPTIONS, str(output_path)]
+        command = [FFMPEG_PATH, "-hide_banner", "-loglevel", "error", "-y", *input_options, "-stream_loop", "-1", "-i", str(effect["path"]), "-filter_complex", filter_graph, "-map", "[v]", "-an", *MP4_ENCODING_OPTIONS, str(output_path)]
     process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     session = VideoRenderSession(process, directory, output_path, fps, expected_frames)
     video_render_sessions[render_id] = session
@@ -222,7 +225,7 @@ async def cancel_video_render(render_id: str) -> Response:
 
 
 def _probe_video_output(path: Path) -> dict[str, float | int]:
-    command = ["ffprobe", "-v", "error", "-count_frames", "-select_streams", "v:0", "-show_entries", "stream=nb_read_frames,avg_frame_rate,duration", "-of", "json", str(path)]
+    command = [FFPROBE_PATH, "-v", "error", "-count_frames", "-select_streams", "v:0", "-show_entries", "stream=nb_read_frames,avg_frame_rate,duration", "-of", "json", str(path)]
     result = subprocess.run(command, capture_output=True, text=True, timeout=60, check=False)
     if result.returncode != 0:
         raise HTTPException(status_code=422, detail="FFprobe could not validate the encoded video.")
@@ -239,7 +242,7 @@ async def convert_video(
     light_effect: str = Form("none", pattern="^(none|soft-reflections)$"),
     input_fps: int | None = Form(None, ge=1, le=120),
 ) -> Response:
-    if shutil.which("ffmpeg") is None:
+    if shutil.which(FFMPEG_PATH) is None:
         raise HTTPException(status_code=503, detail="FFmpeg is not installed on the backend.")
     payload = await video.read(MAX_VIDEO_UPLOAD_BYTES + 1)
     if not payload:
@@ -259,10 +262,10 @@ async def convert_video(
         input_path.write_bytes(payload)
         input_options = ["-f", "mjpeg", "-framerate", str(input_fps or 30)] if is_mjpeg else []
         if effect is None:
-            command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *input_options, "-i", str(input_path), "-an", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", *MP4_ENCODING_OPTIONS, str(output_path)]
+            command = [FFMPEG_PATH, "-hide_banner", "-loglevel", "error", "-y", *input_options, "-i", str(input_path), "-an", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", *MP4_ENCODING_OPTIONS, str(output_path)]
         else:
             filter_graph = f"[1:v][0:v]scale2ref=w=rw:h=rh[effect][base];[base][effect]blend=all_mode={effect['blend_mode']}:all_opacity={effect['opacity']}:shortest=1[mixed];[mixed]scale=trunc(iw/2)*2:trunc(ih/2)*2[v]"
-            command = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", *input_options, "-i", str(input_path), "-stream_loop", "-1", "-i", str(effect["path"]), "-filter_complex", filter_graph, "-map", "[v]", "-an", *MP4_ENCODING_OPTIONS, str(output_path)]
+            command = [FFMPEG_PATH, "-hide_banner", "-loglevel", "error", "-y", *input_options, "-i", str(input_path), "-stream_loop", "-1", "-i", str(effect["path"]), "-filter_complex", filter_graph, "-map", "[v]", "-an", *MP4_ENCODING_OPTIONS, str(output_path)]
         result = await asyncio.to_thread(subprocess.run, command, capture_output=True, text=True, timeout=300, check=False)
         if result.returncode != 0 or not output_path.exists():
             logger.error("[%s] MP4 conversion failed code=%d error=%s", conversion_id, result.returncode, result.stderr[-1000:])

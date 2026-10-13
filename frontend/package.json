@@ -1,6 +1,8 @@
 {
   "name": "astro-parallax-studio",
   "version": "0.8.0",
+  "description": "Bring astrophotography to life through cinematic parallax motion.",
+  "author": "Paralastro",
   "private": true,
   "main": "desktop/main.cjs",
   "scripts": {
@@ -9,6 +11,12 @@
     "test": "ng test",
     "desktop:build": "ng build",
     "desktop:start": "npm run desktop:build && electron .",
+    "desktop:build-backend": "node ../scripts/build-desktop-backend.cjs",
+    "desktop:stage-resources": "node scripts/stage-desktop-resources.cjs",
+    "desktop:prepare": "npm run desktop:build && npm run desktop:build-backend && npm run desktop:stage-resources",
+    "desktop:pack": "npm run desktop:prepare && electron-builder --dir",
+    "desktop:dist": "npm run desktop:prepare && electron-builder",
+    "desktop:verify": "node scripts/verify-desktop-package.cjs",
     "desktop:test-worker": "node desktop/render-worker.integration.cjs"
   },
   "dependencies": {
@@ -17,6 +25,8 @@
     "@angular/core": "^20.3.0",
     "@angular/forms": "^20.3.0",
     "@angular/platform-browser": "^20.3.0",
+    "ffmpeg-static": "^5.3.0",
+    "ffprobe-static": "^3.1.0",
     "rxjs": "^7.8.2",
     "three": "^0.180.0",
     "zone.js": "^0.15.1"
@@ -29,6 +39,7 @@
     "@types/three": "^0.180.0",
     "@webgpu/types": "^0.1.64",
     "electron": "^44.7.0",
+    "electron-builder": "^26.15.3",
     "jasmine-core": "^5.9.0",
     "karma": "^6.4.4",
     "karma-chrome-launcher": "^3.2.0",
@@ -36,5 +47,39 @@
     "karma-jasmine": "^5.1.0",
     "karma-jasmine-html-reporter": "^2.1.0",
     "typescript": "~5.9.2"
+  },
+  "build": {
+    "appId": "com.paralastro.studio",
+    "productName": "Paralastro",
+    "copyright": "Copyright © 2026 Paralastro",
+    "artifactName": "Paralastro-${version}-${os}-${arch}.${ext}",
+    "asar": true,
+    "directories": { "output": "release" },
+    "files": [
+      "desktop/**",
+      "dist/astro-parallax-studio/browser/**",
+      "package.json"
+    ],
+    "asarUnpack": ["desktop/render-worker.cjs"],
+    "extraResources": [
+      { "from": "build-resources/paralastro-backend", "to": "backend" },
+      { "from": "build-resources/bin", "to": "bin" },
+      { "from": "build-resources/effects", "to": "effects" },
+      { "from": "build-resources/licenses", "to": "licenses" }
+    ],
+    "mac": {
+      "category": "public.app-category.photography",
+      "icon": "build/icon.icns",
+      "target": [{ "target": "dmg", "arch": ["arm64"] }, { "target": "zip", "arch": ["arm64"] }],
+      "minimumSystemVersion": "12.0",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "notarize": true,
+      "entitlements": "desktop/entitlements.mac.plist",
+      "entitlementsInherit": "desktop/entitlements.mac.plist"
+    },
+    "dmg": { "sign": false },
+    "win": { "target": ["nsis"], "icon": "build/icon.ico" },
+    "linux": { "target": ["AppImage"], "category": "Graphics" }
   }
 }

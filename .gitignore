@@ -11,3 +11,6 @@ out-tsc/
 .DS_Store
 backend/.data/
 frontend/public/generated/
+backend/build/
+frontend/build-resources/
+frontend/release/

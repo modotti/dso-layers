@@ -24,7 +24,8 @@ function start(command) {
     const filter = '[1:v][0:v]scale2ref=w=rw:h=rh[effect][base];[base][effect]blend=all_mode=screen:all_opacity=0.07:shortest=1[mixed];[mixed]scale=trunc(iw/2)*2:trunc(ih/2)*2[v]';
     args = ['-hide_banner', '-loglevel', 'error', '-y', ...input, '-stream_loop', '-1', '-i', effect, '-filter_complex', filter, '-map', '[v]', '-an', ...encode, outputPath];
   } else args = ['-hide_banner', '-loglevel', 'error', '-y', ...input, '-an', '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2', ...encode, outputPath];
-  const processHandle = spawn('ffmpeg', args, { stdio: ['pipe', 'ignore', 'pipe'] });
+  const ffmpegPath = process.env.PARALASTRO_FFMPEG_PATH || 'ffmpeg';
+  const processHandle = spawn(ffmpegPath, args, { stdio: ['pipe', 'ignore', 'pipe'] });
   const job = { process: processHandle, outputPath, frames: 0, expected: expectedFrames(manifest), finishing: false, cancelled: false, error: '' };
   activeJobs.set(jobId, job);
   processHandle.stderr.on('data', chunk => { job.error = `${job.error}${chunk}`.slice(-2000); });

@@ -37,6 +37,18 @@ Optional export light effects are backend assets. For the **Soft reflections** p
 
 You can also run both services with `./scripts/dev.sh`; it expects the backend virtual environment at `backend/.venv`.
 
+## Desktop development and packaging
+
+```bash
+cd frontend
+npm run desktop:start       # development shell
+npm run desktop:pack        # unpacked local application
+npm run desktop:verify      # validates packaged native resources
+npm run desktop:dist        # DMG and ZIP release artifacts
+```
+
+Desktop packaging builds a standalone backend with PyInstaller and bundles FFmpeg/FFprobe. Install backend development dependencies once with `cd backend && .venv/bin/pip install -e '.[dev]'`. Unsigned local packages are intended for smoke testing; public macOS artifacts must be signed and notarized as described in [the desktop distribution plan](docs/desktop-distribution-plan.md).
+
 ## Test and build
 
 ```bash

@@ -24,6 +24,7 @@
         <details class="workflow-section" *ngIf="project && editorOpen" open><summary><span>Depth editor</span><small>Local brush</small></summary><ng-container *ngTemplateOutlet="depthEditorPanel"></ng-container></details>
         <details class="workflow-section" *ngIf="!project" open><summary><span>Build settings</span><small>Depth warp</small></summary><ng-container *ngTemplateOutlet="processingPanel"></ng-container></details>
         <details class="workflow-section" *ngIf="project"><summary><span>Build settings</span><small>Depth warp</small></summary><ng-container *ngTemplateOutlet="processingPanel"></ng-container></details>
+        <button class="desktop-diagnostics" *ngIf="desktop" type="button" (click)="showDesktopLogs()">Open diagnostic logs</button>
       </div>
     </aside>
     <div class="viewport" [class.playback]="cameraPlayback">
