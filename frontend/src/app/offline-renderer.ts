@@ -30,7 +30,7 @@ export function createFrameSchedule(durationSeconds: number, fps: number): Frame
 
 export interface FrameSink {
   write(frame: RenderedFrame): Promise<void>;
-  close(): Promise<void>;
+  close(signal?: AbortSignal): Promise<void>;
   abort(reason?: unknown): Promise<void>;
 }
 
@@ -64,8 +64,9 @@ export async function runRenderJob(
       checkCancelled(); await sink.write({ ...frame, timestampMicroseconds: item.timestampMicroseconds, durationMicroseconds: item.durationMicroseconds });
       renderedFrames = item.index + 1;
       options.onProgress?.({ renderedFrames: item.index + 1, totalFrames: schedule.length, renderSeconds: (now() - started) / 1000 });
+      emit('rendering');
     }
-    checkCancelled(); emit('encoding'); await sink.close(); emit('completed');
+    checkCancelled(); emit('encoding'); await sink.close(options.signal); checkCancelled(); emit('completed');
   } catch (error) {
     await sink.abort(error);
     const cancelled = options.signal?.aborted || (error instanceof DOMException && error.name === 'AbortError');

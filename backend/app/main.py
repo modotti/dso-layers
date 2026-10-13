@@ -60,6 +60,8 @@ class VideoRenderSession:
     frames: int = 0
     last_activity: float = field(default_factory=perf_counter)
     watchdog: asyncio.Task[None] | None = None
+    finishing: bool = False
+    cancelled: bool = False
 
 
 video_render_sessions: dict[str, VideoRenderSession] = {}
@@ -150,6 +152,8 @@ async def append_video_frame(render_id: str, frame: UploadFile = File(...)) -> R
     session = video_render_sessions.get(render_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Video render job not found.")
+    if session.finishing:
+        raise HTTPException(status_code=409, detail="Video render job is already being finalized.")
     payload = await frame.read(24 * 1024 * 1024 + 1)
     if not payload.startswith(b"\xff\xd8") or len(payload) > 24 * 1024 * 1024:
         raise HTTPException(status_code=422, detail="The rendered frame is not a valid JPEG or is too large.")
@@ -165,9 +169,12 @@ async def append_video_frame(render_id: str, frame: UploadFile = File(...)) -> R
 
 @app.post("/api/v1/video-renders/{render_id}/finish")
 async def finish_video_render(render_id: str, expected_frames: int | None = Form(None, ge=1, le=216000)) -> Response:
-    session = video_render_sessions.pop(render_id, None)
+    session = video_render_sessions.get(render_id)
     if session is None:
         raise HTTPException(status_code=404, detail="Video render job not found.")
+    if session.finishing:
+        raise HTTPException(status_code=409, detail="Video render job is already being finalized.")
+    session.finishing = True
     if session.watchdog is not None:
         session.watchdog.cancel()
     try:
@@ -175,6 +182,8 @@ async def finish_video_render(render_id: str, expected_frames: int | None = Form
             session.process.stdin.close()
         return_code = await asyncio.to_thread(session.process.wait, 300)
         error = session.process.stderr.read().decode(errors="replace") if session.process.stderr else ""
+        if session.cancelled:
+            raise HTTPException(status_code=409, detail="Video render job was cancelled.")
         if return_code != 0 or not session.frames or not session.output_path.exists():
             logger.error("[%s] streamed MP4 render failed code=%d frames=%d error=%s", render_id, return_code, session.frames, error[-1000:])
             raise HTTPException(status_code=422, detail="FFmpeg could not finalize the streamed video.")
@@ -190,6 +199,10 @@ async def finish_video_render(render_id: str, expected_frames: int | None = Form
         headers = {"Content-Disposition": 'attachment; filename="camera-path.mp4"', "X-Video-Frames": str(probe["frames"]), "X-Video-Fps": f'{probe["fps"]:.3f}', "X-Video-Duration": f'{probe["duration"]:.6f}'}
         return Response(session.output_path.read_bytes(), media_type="video/mp4", headers=headers)
     finally:
+        if session.process.poll() is None:
+            session.process.terminate()
+        if video_render_sessions.get(render_id) is session:
+            video_render_sessions.pop(render_id, None)
         session.directory.cleanup()
 
 
@@ -197,9 +210,14 @@ async def finish_video_render(render_id: str, expected_frames: int | None = Form
 async def cancel_video_render(render_id: str) -> Response:
     session = video_render_sessions.pop(render_id, None)
     if session is not None:
+        session.cancelled = True
         if session.watchdog is not None:
             session.watchdog.cancel()
-        await _dispose_video_render(session)
+        if session.finishing:
+            if session.process.poll() is None:
+                session.process.terminate()
+        else:
+            await _dispose_video_render(session)
     return Response(status_code=204)
 
 

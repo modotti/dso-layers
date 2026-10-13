@@ -1,6 +1,8 @@
 import { createFrameSchedule, DeterministicRenderer, FrameSink, RenderJobManifest, runRenderJob, videoRenderDimensions } from './offline-renderer';
 
 describe('createFrameSchedule', () => {
+  const cancellableManifest = (): RenderJobManifest => ({ version: 1, jobId: 'cancel-test', scene: {} as RenderJobManifest['scene'], assets: [], timeline: { movements: [{ id: 'a', duration: 5, easing: 'linear', path: { start: { position: [0, 0, 1], target: [0, 0, 0] }, end: { position: [1, 0, 1], target: [0, 0, 0] } } }], flow: 'per-movement', transitionMomentum: 0, overlays: [] }, output: { width: 10, height: 10, fps: 1, quality: 'draft', lightEffect: 'none' } });
+
   it('creates exact timestamped frames without adding the final still', () => {
     const frames = createFrameSchedule(1, 24);
     expect(frames.length).toBe(24);
@@ -25,6 +27,26 @@ describe('createFrameSchedule', () => {
     await runRenderJob(manifest, renderer, sink, { now: () => clock, onEvent: event => statuses.push(event.status) });
     expect(timestamps).toEqual([0, 500000, 1000000, 1500000, 2000000, 2500000, 3000000, 3500000, 4000000, 4500000]);
     expect(disposed).toBeTrue();
-    expect(statuses).toEqual(['preparing', 'rendering', 'encoding', 'completed']);
+    expect(statuses.slice(0, 2)).toEqual(['preparing', 'rendering']);
+    expect(statuses.slice(-2)).toEqual(['encoding', 'completed']);
   });
+
+  for (const phase of ['preparation', 'rendering', 'encoding'] as const) {
+    it(`cancels and disposes during ${phase}`, async () => {
+      const controller = new AbortController(); let aborted = false; let disposed = false;
+      const renderer: DeterministicRenderer = {
+        prepare: async () => { if (phase === 'preparation') controller.abort(); },
+        renderFrameAt: async () => { if (phase === 'rendering') controller.abort(); return { source: {} as CanvasImageSource, timestampMicroseconds: 0, durationMicroseconds: 0 }; },
+        dispose: async () => { disposed = true; },
+      };
+      const sink: FrameSink = {
+        write: async () => undefined,
+        close: async signal => { if (phase === 'encoding') { controller.abort(); throw signal?.reason; } },
+        abort: async () => { aborted = true; },
+      };
+      await expectAsync(runRenderJob(cancellableManifest(), renderer, sink, { signal: controller.signal })).toBeRejected();
+      expect(aborted).toBeTrue();
+      expect(disposed).toBeTrue();
+    });
+  }
 });
