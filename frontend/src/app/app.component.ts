@@ -14,7 +14,7 @@ export class AppComponent implements OnDestroy {
   editorOpen = false;
   brush: DepthBrushSettings = { tool: 'near', size: 80, strength: .25 };
   lighting: LightingSettings = { intensity: .06, relief: 1.2, direction: 135 };
-  depthOfField: DepthOfFieldSettings = { enabled: false, focusMode: 'starless', focusDistance: 5, aperture: .002, maxBlur: .006 };
+  depthOfField: DepthOfFieldSettings = { enabled: false, focusMode: 'starless', focusLayerId: null, focusDistance: 5, aperture: .002, maxBlur: .006 };
   editorHistory: EditorHistoryState = { canUndo: false, canRedo: false, modified: false };
   soloLayerId: string | null = null; differenceGain = 8; gpu: GpuDiagnostics | null = null;
   cameraMovements: CameraMovement[] = [{ id: 'movement-1', path: {}, duration: 7, easing: 'ease-in-out' }]; activeMovementIndex = 0; cameraRoll = 0; cameraPlayback = false; cameraPathFlow: CameraPathFlow = 'continuous'; transitionMomentum = 0.55;
@@ -70,13 +70,14 @@ export class AppComponent implements OnDestroy {
   setBrushTool(tool: DepthBrushTool): void { this.brush = { ...this.brush, tool }; this.savePreferences(); }
   updateBrush(parameter: 'size' | 'strength', value: number): void { this.brush = { ...this.brush, [parameter]: value }; this.savePreferences(); }
   updateLighting(parameter: keyof LightingSettings, value: number): void { this.lighting = { ...this.lighting, [parameter]: value }; this.savePreferences(); }
-  updateDepthOfField(parameter: Exclude<keyof DepthOfFieldSettings, 'focusMode'>, value: number | boolean): void {
-    const limits: Record<Exclude<keyof DepthOfFieldSettings, 'enabled' | 'focusMode'>, [number, number]> = { focusDistance: [.1, 30], aperture: [0, .01], maxBlur: [0, .02] };
+  updateDepthOfField(parameter: 'enabled' | 'focusDistance' | 'aperture' | 'maxBlur', value: number | boolean): void {
+    const limits: Record<'focusDistance' | 'aperture' | 'maxBlur', [number, number]> = { focusDistance: [.1, 30], aperture: [0, .01], maxBlur: [0, .02] };
     if (parameter === 'enabled') this.depthOfField = { ...this.depthOfField, enabled: !!value };
     else { const [minimum, maximum] = limits[parameter]; this.depthOfField = { ...this.depthOfField, [parameter]: Math.max(minimum, Math.min(maximum, Number(value) || 0)) }; }
     this.savePreferences();
   }
-  updateDepthOfFieldMode(focusMode: DepthOfFieldFocusMode): void { this.depthOfField = { ...this.depthOfField, focusMode }; this.savePreferences(); }
+  updateDepthOfFieldMode(focusMode: DepthOfFieldFocusMode): void { const focusLayerId = focusMode === 'layer' && !this.depthOfField.focusLayerId ? (this.project?.scene.layers[0]?.id ?? null) : this.depthOfField.focusLayerId; this.depthOfField = { ...this.depthOfField, focusMode, focusLayerId }; this.savePreferences(); }
+  updateDepthOfFieldLayer(focusLayerId: string): void { this.depthOfField = { ...this.depthOfField, focusLayerId }; this.savePreferences(); }
   toggleSolo(layer: SceneLayer): void { this.soloLayerId = this.soloLayerId === layer.id ? null : layer.id; }
   preview(path: ParallaxPath): void { this.viewer?.startParallaxPreview(path); }
   updatePreference(parameter: 'separation' | 'starPresence' | 'differenceGain', value: number): void { this[parameter] = value; this.savePreferences(); }

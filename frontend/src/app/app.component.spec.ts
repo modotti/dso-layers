@@ -38,7 +38,7 @@ describe('AppComponent', () => {
     expect(restored.starPresence).toBe(1.6);
     expect(restored.starSettings.warpStrength).toBe(0.035);
     expect(restored.lighting.intensity).toBe(.11);
-    expect(restored.depthOfField).toEqual({ enabled: true, focusMode: 'manual', focusDistance: 7.4, aperture: .004, maxBlur: .012 });
+    expect(restored.depthOfField).toEqual({ enabled: true, focusMode: 'manual', focusLayerId: null, focusDistance: 7.4, aperture: .004, maxBlur: .012 });
     expect(restored.cameraRoll).toBe(-28);
     expect(restored.cameraPathDuration).toBe(16);
     expect(restored.cameraPathEasing).toBe('ease-out');
@@ -55,7 +55,7 @@ describe('AppComponent', () => {
     component.updateDepthOfField('focusDistance', 100);
     component.updateDepthOfField('aperture', -1);
     component.updateDepthOfField('maxBlur', .5);
-    expect(component.depthOfField).toEqual({ enabled: false, focusMode: 'starless', focusDistance: 30, aperture: 0, maxBlur: .02 });
+    expect(component.depthOfField).toEqual({ enabled: false, focusMode: 'starless', focusLayerId: null, focusDistance: 30, aperture: 0, maxBlur: .02 });
   });
   it('inherits the previous caption settings without copying its text', () => {
     const component = TestBed.createComponent(AppComponent).componentInstance;

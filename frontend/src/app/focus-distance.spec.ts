@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { focusDistanceAlongView, perspectiveDepthForDistance } from './focus-distance';
+import { focusDistanceAlongView, interpolateFocusDistance, perspectiveDepthForDistance } from './focus-distance';
 
 describe('focusDistanceAlongView', () => {
   it('projects the focus point onto the camera view axis', () => {
@@ -23,4 +23,9 @@ describe('perspectiveDepthForDistance', () => {
     expect(perspectiveDepthForDistance(.1, .1, 100)).toBeCloseTo(0, 6);
     expect(perspectiveDepthForDistance(100, .1, 100)).toBeCloseTo(1, 6);
   });
+});
+
+describe('interpolateFocusDistance', () => {
+  it('interpolates captured focus distances', () => expect(interpolateFocusDistance(4, 8, .25)).toBe(5));
+  it('keeps legacy paths on dynamic focus', () => expect(interpolateFocusDistance(undefined, 8, .5)).toBeUndefined());
 });

@@ -22,12 +22,12 @@ export type ViewerMode = '3d' | 'original' | 'reconstructed' | 'difference' | 'd
 export type DepthBrushTool = 'near' | 'far' | 'smooth' | 'protect';
 export interface DepthBrushSettings { tool: DepthBrushTool; size: number; strength: number }
 export interface LightingSettings { intensity: number; relief: number; direction: number }
-export type DepthOfFieldFocusMode = 'starless' | 'target' | 'manual';
-export interface DepthOfFieldSettings { enabled: boolean; focusMode: DepthOfFieldFocusMode; focusDistance: number; aperture: number; maxBlur: number }
+export type DepthOfFieldFocusMode = 'starless' | 'target' | 'layer' | 'manual';
+export interface DepthOfFieldSettings { enabled: boolean; focusMode: DepthOfFieldFocusMode; focusLayerId: string | null; focusDistance: number; aperture: number; maxBlur: number }
 export interface EditorHistoryState { canUndo: boolean; canRedo: boolean; modified: boolean }
 export type ParallaxPath = 'horizontal' | 'vertical' | 'orbit';
 export interface GpuDiagnostics { maxTextureSize: number; renderer: string; previewWidth: number; previewHeight: number; sourceTooLarge: boolean }
-export interface CameraPathPose { position: [number, number, number]; target: [number, number, number]; roll?: number }
+export interface CameraPathPose { position: [number, number, number]; target: [number, number, number]; roll?: number; focusDistance?: number }
 export interface CameraPathState { start?: CameraPathPose; end?: CameraPathPose }
 export type CameraPathEasing = 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out';
 export type CameraPathFlow = 'per-movement' | 'continuous';

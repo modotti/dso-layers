@@ -10,3 +10,7 @@ export function perspectiveDepthForDistance(distance: number, nearClip: number, 
   const viewZ = -Math.max(nearClip, distance);
   return THREE.MathUtils.clamp(((nearClip + viewZ) * farClip) / ((farClip - nearClip) * viewZ), 0, 1);
 }
+
+export function interpolateFocusDistance(start: number | undefined, end: number | undefined, phase: number): number | undefined {
+  return start === undefined || end === undefined ? undefined : THREE.MathUtils.lerp(start, end, THREE.MathUtils.clamp(phase, 0, 1));
+}

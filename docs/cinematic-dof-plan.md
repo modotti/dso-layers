@@ -42,7 +42,7 @@ Validation gate:
 
 ## Phase 2 — focus controls and animation
 
-Implementation status: in progress. Manual distance, camera-target focus, and automatic starless-layer focus are implemented; arbitrary layer selection and animated focus pulls remain.
+Implementation status: complete. Manual distance, camera-target focus, automatic starless focus, arbitrary layer selection, captured endpoint focus, and deterministic focus pulls are implemented for both path-flow modes and export.
 
 Make focus useful for interactive exploration and cinematic paths.
 
