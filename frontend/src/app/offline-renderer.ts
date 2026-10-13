@@ -1,4 +1,6 @@
 import { CameraMovement, SceneDocument } from './models';
+import { RenderJobEvent, RenderJobManifest } from './render-job';
+export { RenderJobManifest } from './render-job';
 
 export type RenderQuality = 'draft' | 'final';
 export interface FrameRenderRequest { timeSeconds: number; width: number; height: number; quality: RenderQuality }
@@ -26,13 +28,6 @@ export function createFrameSchedule(durationSeconds: number, fps: number): Frame
   }));
 }
 
-export interface RenderJobManifest {
-  version: 1;
-  scene: SceneDocument;
-  timeline: CameraMovement[];
-  output: { width: number; height: number; fps: number; quality: RenderQuality };
-}
-
 export interface FrameSink {
   write(frame: RenderedFrame): Promise<void>;
   close(): Promise<void>;
@@ -43,6 +38,7 @@ export interface RenderProgress { renderedFrames: number; totalFrames: number; r
 export interface RunRenderJobOptions {
   signal?: AbortSignal;
   onProgress?: (progress: RenderProgress) => void;
+  onEvent?: (event: RenderJobEvent) => void;
   now?: () => number;
 }
 
@@ -53,20 +49,28 @@ export async function runRenderJob(
   sink: FrameSink,
   options: RunRenderJobOptions = {},
 ): Promise<void> {
-  const schedule = createFrameSchedule(manifest.timeline.reduce((sum, item) => sum + Math.max(5, Math.min(20, item.duration)), 0), manifest.output.fps);
+  const schedule = createFrameSchedule(manifest.timeline.movements.reduce((sum, item) => sum + Math.max(5, Math.min(20, item.duration)), 0), manifest.output.fps);
   const now = options.now ?? (() => performance.now()); const started = now();
+  let renderedFrames = 0;
+  const emit = (status: RenderJobEvent['status'], message?: string) => options.onEvent?.({ jobId: manifest.jobId, status, renderedFrames, totalFrames: schedule.length, message });
   const checkCancelled = () => { if (options.signal?.aborted) throw options.signal.reason ?? new DOMException('Render cancelled', 'AbortError'); };
   try {
-    checkCancelled(); await renderer.prepare(manifest.scene, manifest.timeline);
+    emit('preparing');
+    checkCancelled(); await renderer.prepare(manifest.scene, manifest.timeline.movements);
+    emit('rendering');
     for (const item of schedule) {
       checkCancelled();
       const frame = await renderer.renderFrameAt({ timeSeconds: item.timeSeconds, width: manifest.output.width, height: manifest.output.height, quality: manifest.output.quality });
       checkCancelled(); await sink.write({ ...frame, timestampMicroseconds: item.timestampMicroseconds, durationMicroseconds: item.durationMicroseconds });
+      renderedFrames = item.index + 1;
       options.onProgress?.({ renderedFrames: item.index + 1, totalFrames: schedule.length, renderSeconds: (now() - started) / 1000 });
     }
-    checkCancelled(); await sink.close();
+    checkCancelled(); emit('encoding'); await sink.close(); emit('completed');
   } catch (error) {
-    await sink.abort(error); throw error;
+    await sink.abort(error);
+    const cancelled = options.signal?.aborted || (error instanceof DOMException && error.name === 'AbortError');
+    emit(cancelled ? 'cancelled' : 'failed', error instanceof Error ? error.message : String(error));
+    throw error;
   } finally {
     await renderer.dispose();
   }

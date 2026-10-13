@@ -18,12 +18,13 @@ describe('createFrameSchedule', () => {
   });
 
   it('keeps timestamps exact when rendering is slower than playback', async () => {
-    const timestamps: number[] = []; let clock = 0; let disposed = false;
+    const timestamps: number[] = []; const statuses: string[] = []; let clock = 0; let disposed = false;
     const renderer: DeterministicRenderer = { prepare: async () => undefined, renderFrameAt: async request => { clock += 100; return { source: {} as CanvasImageSource, timestampMicroseconds: request.timeSeconds * 1e6, durationMicroseconds: 0 }; }, dispose: async () => { disposed = true; } };
     const sink: FrameSink = { write: async frame => { timestamps.push(frame.timestampMicroseconds); }, close: async () => undefined, abort: async () => undefined };
-    const manifest = { version: 1, scene: {} as RenderJobManifest['scene'], timeline: [{ id: 'a', duration: 5, easing: 'linear', path: { start: { position: [0, 0, 1], target: [0, 0, 0] }, end: { position: [1, 0, 1], target: [0, 0, 0] } } }], output: { width: 10, height: 10, fps: 2, quality: 'draft' } } satisfies RenderJobManifest;
-    await runRenderJob(manifest, renderer, sink, { now: () => clock });
+    const manifest = { version: 1, jobId: 'test', scene: {} as RenderJobManifest['scene'], assets: [], timeline: { movements: [{ id: 'a', duration: 5, easing: 'linear', path: { start: { position: [0, 0, 1], target: [0, 0, 0] }, end: { position: [1, 0, 1], target: [0, 0, 0] } } }], flow: 'per-movement', transitionMomentum: 0, overlays: [] }, output: { width: 10, height: 10, fps: 2, quality: 'draft', lightEffect: 'none' } } satisfies RenderJobManifest;
+    await runRenderJob(manifest, renderer, sink, { now: () => clock, onEvent: event => statuses.push(event.status) });
     expect(timestamps).toEqual([0, 500000, 1000000, 1500000, 2000000, 2500000, 3000000, 3500000, 4000000, 4500000]);
     expect(disposed).toBeTrue();
+    expect(statuses).toEqual(['preparing', 'rendering', 'encoding', 'completed']);
   });
 });
