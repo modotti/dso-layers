@@ -1,97 +1,1243 @@
 <header class="topbar">
-  <div class="brand"><span class="mark">✦</span><div><strong>Paralastro 0.8</strong><small>Bring your astrophotography to life through motion.</small></div></div>
+  <div class="brand">
+    <span class="mark">✦</span>
+    <div>
+      <strong>Paralastro 0.8</strong
+      ><small>Bring your astrophotography to life through motion.</small>
+    </div>
+  </div>
   <div class="imports">
-    <label class="file"><span>Starless</span><b>{{ starless?.name || 'Choose image' }}</b><input type="file" accept=".png,.tif,.tiff" (change)="choose($event,'starless')"></label>
-    <label class="file"><span>Stars</span><b>{{ stars?.name || 'Choose image' }}</b><input type="file" accept=".png,.tif,.tiff" (change)="choose($event,'stars')"></label>
-    <label class="file optional"><span>Depth map · optional</span><b>{{ depthMap?.name || 'Automatic' }}</b><input #depthInput type="file" accept=".png,.tif,.tiff" (change)="choose($event,'depthMap')"></label>
-    <button class="clear-depth" *ngIf="depthMap" title="Use automatic depth map" (click)="depthMap=null; depthInput.value=''">×</button>
-    <button class="primary" [disabled]="!starless || !stars || busy" (click)="generate()">{{ busy ? loadingTitle : 'Build scene' }}</button>
+    <label class="file"
+      ><span>Starless</span><b>{{ starless?.name || "Choose image" }}</b
+      ><input
+        type="file"
+        accept=".png,.tif,.tiff"
+        (change)="choose($event, 'starless')"
+    /></label>
+    <label class="file"
+      ><span>Stars</span><b>{{ stars?.name || "Choose image" }}</b
+      ><input
+        type="file"
+        accept=".png,.tif,.tiff"
+        (change)="choose($event, 'stars')"
+    /></label>
+    <label class="file optional"
+      ><span>Depth map · optional</span
+      ><b>{{ depthMap?.name || "Automatic" }}</b
+      ><input
+        #depthInput
+        type="file"
+        accept=".png,.tif,.tiff"
+        (change)="choose($event, 'depthMap')"
+    /></label>
+    <button
+      class="clear-depth"
+      *ngIf="depthMap"
+      title="Use automatic depth map"
+      (click)="depthMap = null; depthInput.value = ''"
+    >
+      ×
+    </button>
+    <button
+      class="primary"
+      [disabled]="!starless || !stars || busy"
+      (click)="generate()"
+    >
+      {{ busy ? loadingTitle : "Build scene" }}
+    </button>
   </div>
 </header>
 
 <main [class.empty]="!project">
   <section class="workspace" [class.sidebar-collapsed]="sidebarCollapsed">
-    <aside class="workflow-panel" [class.collapsed]="sidebarCollapsed" aria-label="Editing controls">
+    <aside
+      class="workflow-panel"
+      [class.collapsed]="sidebarCollapsed"
+      aria-label="Editing controls"
+    >
       <header class="workflow-head">
         <div><small>WORKSPACE</small><strong>Controls</strong></div>
-        <button type="button" [attr.aria-label]="sidebarCollapsed ? 'Expand controls' : 'Collapse controls'" [title]="sidebarCollapsed ? 'Expand controls' : 'Collapse controls'" (click)="toggleSidebar()">{{ sidebarCollapsed ? '›' : '‹' }}</button>
+        <button
+          type="button"
+          [attr.aria-label]="
+            sidebarCollapsed ? 'Expand controls' : 'Collapse controls'
+          "
+          [title]="sidebarCollapsed ? 'Expand controls' : 'Collapse controls'"
+          (click)="toggleSidebar()"
+        >
+          {{ sidebarCollapsed ? "›" : "‹" }}
+        </button>
       </header>
       <div class="workflow-scroll" *ngIf="!sidebarCollapsed">
-        <details class="workflow-section" *ngIf="project"><summary><span>Scene</span><small>Layers & effects</small></summary><ng-container *ngTemplateOutlet="scenePanel"></ng-container></details>
-        <details class="workflow-section" *ngIf="project && !editorOpen" open><summary><span>Camera movements</span><small>{{ cameraMovements.length }}</small></summary><ng-container *ngTemplateOutlet="cameraPanel"></ng-container></details>
-        <details class="workflow-section" *ngIf="project && !editorOpen"><summary><span>Captions</span><small>{{ textOverlays.length }}</small></summary><ng-container *ngTemplateOutlet="captionPanel"></ng-container></details>
-        <details class="workflow-section" *ngIf="project && !editorOpen"><summary><span>Video export</span><small>{{ videoExport.width }} × {{ videoExport.height }}</small></summary><ng-container *ngTemplateOutlet="videoPanel"></ng-container><ng-container *ngTemplateOutlet="videoActions"></ng-container></details>
-        <details class="workflow-section" *ngIf="project && editorOpen" open><summary><span>Depth editor</span><small>Local brush</small></summary><ng-container *ngTemplateOutlet="depthEditorPanel"></ng-container></details>
-        <details class="workflow-section" *ngIf="!project" open><summary><span>Build settings</span><small>Depth warp</small></summary><ng-container *ngTemplateOutlet="processingPanel"></ng-container></details>
-        <details class="workflow-section" *ngIf="project"><summary><span>Build settings</span><small>Depth warp</small></summary><ng-container *ngTemplateOutlet="processingPanel"></ng-container></details>
-        <button class="desktop-diagnostics" *ngIf="desktop" type="button" (click)="showDesktopLogs()">Open diagnostic logs</button>
+        <details class="workflow-section" *ngIf="project">
+          <summary><span>Scene</span><small>Layers & effects</small></summary>
+          <ng-container *ngTemplateOutlet="scenePanel"></ng-container>
+        </details>
+        <details class="workflow-section" *ngIf="project && !editorOpen" open>
+          <summary>
+            <span>Camera movements</span
+            ><small>{{ cameraMovements.length }}</small>
+          </summary>
+          <ng-container *ngTemplateOutlet="cameraPanel"></ng-container>
+        </details>
+        <details class="workflow-section" *ngIf="project && !editorOpen">
+          <summary>
+            <span>Depth of field</span
+            ><small>{{ depthOfField.enabled ? "On" : "Off" }}</small>
+          </summary>
+          <ng-container *ngTemplateOutlet="depthOfFieldPanel"></ng-container>
+        </details>
+        <details class="workflow-section" *ngIf="project && !editorOpen">
+          <summary>
+            <span>Captions</span><small>{{ textOverlays.length }}</small>
+          </summary>
+          <ng-container *ngTemplateOutlet="captionPanel"></ng-container>
+        </details>
+        <details class="workflow-section" *ngIf="project && !editorOpen">
+          <summary>
+            <span>Video export</span
+            ><small>{{ videoExport.width }} × {{ videoExport.height }}</small>
+          </summary>
+          <ng-container *ngTemplateOutlet="videoPanel"></ng-container
+          ><ng-container *ngTemplateOutlet="videoActions"></ng-container>
+        </details>
+        <details class="workflow-section" *ngIf="project && editorOpen" open>
+          <summary><span>Depth editor</span><small>Local brush</small></summary>
+          <ng-container *ngTemplateOutlet="depthEditorPanel"></ng-container>
+        </details>
+        <details class="workflow-section" *ngIf="!project" open>
+          <summary>
+            <span>Build settings</span><small>Depth warp</small>
+          </summary>
+          <ng-container *ngTemplateOutlet="processingPanel"></ng-container>
+        </details>
+        <details class="workflow-section" *ngIf="project">
+          <summary>
+            <span>Build settings</span><small>Depth warp</small>
+          </summary>
+          <ng-container *ngTemplateOutlet="processingPanel"></ng-container>
+        </details>
+        <button
+          class="desktop-diagnostics"
+          *ngIf="desktop"
+          type="button"
+          (click)="showDesktopLogs()"
+        >
+          Open diagnostic logs
+        </button>
       </div>
     </aside>
     <div class="viewport" [class.playback]="cameraPlayback">
-      <aps-viewer [scene]="project?.scene || null" [mode]="mode" [comparisonUrl]="comparisonUrl" [separation]="separation" [starPresence]="starPresence" [soloLayerId]="soloLayerId" [differenceGain]="differenceGain" [lighting]="lighting" [depthOfField]="depthOfField" [editorEnabled]="editorOpen" [brush]="brush" [cameraPath]="cameraPath" [cameraMovements]="cameraMovements" [cameraRoll]="cameraRoll" [cameraPathDuration]="cameraPathDuration" [cameraPathEasing]="cameraPathEasing" [cameraPathFlow]="cameraPathFlow" [transitionMomentum]="transitionMomentum" [videoExport]="videoExport" [textOverlays]="textOverlays" [activeTextOverlayId]="activeTextOverlay?.id || null" (textOverlayPositionChange)="updateTextOverlayPosition($event)" (cameraPathChange)="updateCameraPath($event)" (cameraSequenceChange)="updateCameraSequence($event)" (cameraRollChange)="updateCameraRoll($event)" (playbackState)="handlePlaybackState($event)" (videoExportState)="handleVideoExportState($event)" (historyChange)="editorHistory=$event" (diagnostics)="gpu=$event"></aps-viewer>
-      <button class="playback-skip" *ngIf="cameraPlayback" (click)="viewer?.skipCameraSequence()">Skip animation →</button>
-      <div class="empty-state" *ngIf="!project && !busy"><span>✧</span><h1>Reveal the space inside your image</h1><p>Import a matched starless and stars pair to build an aligned two-plane scene.</p></div>
-      <div class="processing" *ngIf="busy"><strong>{{ loadingTitle }}</strong><span>{{ loadingDetail }}</span><div class="progress-track" role="progressbar" aria-label="Scene processing progress" aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="loadingProgress | number:'1.0-0'"><i [style.width.%]="loadingProgress"></i></div><small>{{ loadingProgress | number:'1.0-0' }}%</small></div>
-      <div class="view-tabs" *ngIf="project"><button *ngFor="let item of modes" [class.active]="mode===item.value" (click)="mode=item.value">{{ item.label }}</button></div>
-      <div class="camera-tools" *ngIf="project && !editorOpen"><button (click)="viewer?.resetCamera()">Reset camera</button><button (click)="viewer?.startZoom('in')">＋ Zoom in</button><button (click)="viewer?.startDriftZoom()">✦ Drift zoom</button><button (click)="viewer?.startZoom('out')">− Zoom out</button><button (click)="preview('horizontal')">↔ Path</button><button (click)="preview('vertical')">↕ Path</button><button (click)="preview('orbit')">◌ Orbit</button><button (click)="setEditor(true)">✎ Edit depth</button></div>
-      <ng-template #cameraPanel><section class="camera-keyframes" *ngIf="project && !editorOpen"><header class="panel-title"><span>CAMERA MOVEMENTS</span><b>{{ cameraMovements.length }}</b></header><div class="movement-header"><div class="movement-tabs"><button *ngFor="let movement of cameraMovements; index as index" [class.active]="activeMovementIndex===index" (click)="selectMovement(index)">Move {{ index + 1 }}</button><button class="add-movement" *ngIf="cameraMovements.length < maxCameraMovements" title="Add movement" (click)="addMovement()">＋</button></div><button class="remove-movement" title="Remove current movement" [disabled]="cameraMovements.length===1" (click)="removeActiveMovement()">Remove</button></div><div class="sequence-actions"><button class="random-sequence" (click)="viewer?.generateRandomCameraSequence()">✦ Generate random sequence</button><button class="play-path" [disabled]="!canPlaySequence" (click)="viewer?.playCameraPath()">▶ Play all</button></div><button class="link-movement" *ngIf="activeMovementIndex > 0" [disabled]="!canLinkActiveMovement" (click)="linkActiveMovementToPrevious()">↳ Link start to previous end</button><div class="endpoint-actions"><div class="endpoint start"><button class="mark-start" [class.saved]="cameraPath.start" (click)="viewer?.captureCameraPoint('start')">◆ Set start</button><button class="go-start" [disabled]="!cameraPath.start" (click)="viewer?.goToCameraPoint('start')">↤ Go to start</button></div><div class="endpoint end"><button class="mark-end" [class.saved]="cameraPath.end" (click)="viewer?.captureCameraPoint('end')">◆ Set end</button><button class="go-end" [disabled]="!cameraPath.end" (click)="viewer?.goToCameraPoint('end')">↦ Go to end</button></div></div><label><span>Rotation <b>{{ cameraRoll | number:'1.0-0' }}°</b></span><input type="range" min="-180" max="180" step="1" [ngModel]="cameraRoll" (ngModelChange)="updateCameraRoll($event)"></label><label><span>Duration <b>{{ cameraPathDuration | number:'1.0-1' }}s</b></span><input type="range" min="5" max="20" step="0.5" [ngModel]="cameraPathDuration" (ngModelChange)="updatePathDuration($event)"></label><label><span>Path flow</span><select [ngModel]="cameraPathFlow" (ngModelChange)="updatePathFlow($event)"><option *ngFor="let flow of cameraPathFlowOptions" [ngValue]="flow.value">{{ flow.label }}</option></select></label><label *ngIf="cameraPathFlow==='continuous'"><span class="momentum-label">Momentum <b>{{ transitionMomentum | percent:'1.0-0' }}</b></span><input type="range" min="0" max="0.9" step="0.05" [ngModel]="transitionMomentum" (ngModelChange)="updateTransitionMomentum($event)"></label><label *ngIf="cameraPathFlow==='per-movement'"><span>Easing</span><select [ngModel]="cameraPathEasing" (ngModelChange)="updatePathEasing($event)"><option *ngFor="let easing of cameraPathEasingOptions" [ngValue]="easing.value">{{ easing.label }}</option></select></label></section></ng-template>
-      <ng-template #videoPanel><section class="video-export" *ngIf="project && !editorOpen"><header><span>VIDEO VIEWPORT</span><b>{{ videoExport.width }} × {{ videoExport.height }}</b></header><select #videoPreset (change)="applyVideoPreset(+videoPreset.value)"><option *ngFor="let preset of videoPresets; index as index" [value]="index">{{ preset.label }}</option></select><label class="light-effect">Light effect<select [ngModel]="videoExport.lightEffect" (ngModelChange)="updateVideoLightEffect($event)"><option value="none">None</option><option value="soft-reflections">Soft reflections</option></select></label><div class="video-dimensions"><label>Width<input type="number" min="240" max="3840" step="2" [ngModel]="videoExport.width" (ngModelChange)="updateVideoExport('width',$event)"></label><label>Height<input type="number" min="240" max="3840" step="2" [ngModel]="videoExport.height" (ngModelChange)="updateVideoExport('height',$event)"></label><label>FPS<select [ngModel]="videoExport.fps" (ngModelChange)="updateVideoExport('fps',$event)"><option [ngValue]="24">24</option><option [ngValue]="30">30</option><option [ngValue]="60">60</option></select></label></div>
-      </section></ng-template>
-      <ng-template #captionPanel><div class="video-export caption-controls"><div class="text-overlays"><div class="text-tabs"><button *ngFor="let item of textOverlays; index as index" [class.active]="activeTextOverlayIndex===index" (click)="activeTextOverlayIndex=index">Caption {{ index + 1 }}</button><button class="add-text" title="Add caption" [disabled]="textOverlays.length>=maxTextOverlays" (click)="addTextOverlay()">＋</button><button class="delete-text" *ngIf="activeTextOverlay" title="Remove caption" (click)="removeTextOverlay()">Remove</button></div><ng-container *ngIf="activeTextOverlay as overlay"><label class="text-content">Text<textarea rows="2" [ngModel]="overlay.text" (ngModelChange)="updateTextOverlay({text:$event})"></textarea></label><div class="text-grid"><label>Start<input type="number" min="0" [max]="cameraSequenceDuration" step="0.1" [ngModel]="overlay.start" (ngModelChange)="updateTextOverlay({start:+$event})"></label><label>Duration<input type="number" min="0.2" [max]="cameraSequenceDuration" step="0.1" [ngModel]="overlay.duration" (ngModelChange)="updateTextOverlay({duration:+$event})"></label><label>Fade in<input type="number" min="0" step="0.1" [ngModel]="overlay.fadeIn" (ngModelChange)="updateTextOverlay({fadeIn:+$event})"></label><label>Fade out<input type="number" min="0" step="0.1" [ngModel]="overlay.fadeOut" (ngModelChange)="updateTextOverlay({fadeOut:+$event})"></label><label>Font<select [ngModel]="overlay.fontFamily" (ngModelChange)="updateTextOverlay({fontFamily:$event})"><option value="Cabin">Cabin</option><option value="Bitter">Bitter</option><option value="DM Sans">DM Sans</option></select></label><label>Alignment<select [ngModel]="overlay.alignment" (ngModelChange)="updateTextOverlay({alignment:$event})"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select></label><label>Size <b>{{ overlay.fontSize | number:'1.1-1' }}%</b><input type="range" min="1.5" max="12" step="0.1" [ngModel]="overlay.fontSize" (ngModelChange)="updateTextOverlay({fontSize:+$event})"></label><label>Weight <b>{{ overlay.fontWeight | number:'1.0-0' }}</b><input type="range" min="400" max="700" step="10" [ngModel]="overlay.fontWeight" (ngModelChange)="updateTextOverlay({fontWeight:+$event})"></label><label>Letter spacing <b>{{ overlay.letterSpacing | number:'1.3-3' }}em</b><input type="range" min="-0.1" max="0.2" step="0.005" [ngModel]="overlay.letterSpacing" (ngModelChange)="updateTextOverlay({letterSpacing:+$event})"></label><label>Line spacing <b>{{ overlay.lineHeight | number:'1.2-2' }}×</b><input type="range" min="0.8" max="2" step="0.05" [ngModel]="overlay.lineHeight" (ngModelChange)="updateTextOverlay({lineHeight:+$event})"></label><label>Color<input type="color" [ngModel]="overlay.color" (ngModelChange)="updateTextOverlay({color:$event})"></label><label>Opacity <b>{{ overlay.opacity | percent:'1.0-0' }}</b><input type="range" min="0" max="1" step="0.05" [ngModel]="overlay.opacity" (ngModelChange)="updateTextOverlay({opacity:+$event})"></label></div><div class="text-toggles"><label><input type="checkbox" [ngModel]="overlay.enabled" (ngModelChange)="updateTextOverlay({enabled:$event})"> Visible</label><label><input type="checkbox" [ngModel]="overlay.shadow" (ngModelChange)="updateTextOverlay({shadow:$event})"> Shadow</label><label><input type="checkbox" [ngModel]="overlay.background" (ngModelChange)="updateTextOverlay({background:$event})"> Background</label><label><input type="checkbox" [ngModel]="overlay.motion" (ngModelChange)="updateTextOverlay({motion:$event})"> Gentle rise</label></div></ng-container></div></div></ng-template>
-      <ng-template #videoActions><section class="video-export"><label class="light-effect">Quality<select [ngModel]="videoExport.quality || 'final'" (ngModelChange)="updateVideoQuality($event)"><option value="draft">Draft · max 720p</option><option value="final">Final · full resolution</option></select></label><p class="realtime-warning" *ngIf="highRealtimeExportLoad && videoExport.quality!=='draft'">High-resolution DOF exports can take longer than the video duration. Frame timing remains deterministic.</p><button class="export-button" [disabled]="videoExporting || !canPlaySequence" (click)="viewer?.exportCameraPath()">{{ videoExporting ? '● Exporting offline…' : '⬇ Export video' }}</button><small class="render-benchmark" *ngIf="lastVideoBenchmark as benchmark">Last export · {{ benchmark.width }} × {{ benchmark.height }} · {{ benchmark.frames }} frames at {{ benchmark.fps }} fps · rendered at {{ benchmark.renderFps | number:'1.1-1' }} fps in {{ benchmark.renderSeconds | number:'1.1-1' }}s · finalized in {{ benchmark.finalizeSeconds | number:'1.1-1' }}s · {{ benchmark.quality }} · {{ benchmark.gpu }}</small></section></ng-template>
-      <ng-template #depthEditorPanel><section class="depth-editor" *ngIf="project && editorOpen">
-        <header><div><small>LOCAL DEPTH EDITOR</small><strong>Paint the nebula response</strong></div><button title="Close editor" (click)="setEditor(false)">×</button></header>
-        <div class="tool-grid"><button *ngFor="let tool of brushTools" [class.active]="brush.tool===tool.value" [title]="tool.hint" (click)="setBrushTool(tool.value)">{{ tool.label }}</button></div>
-        <label><span>Brush size <b>{{ brush.size | number:'1.0-0' }} px</b></span><input type="range" min="12" max="240" step="4" [ngModel]="brush.size" (ngModelChange)="updateBrush('size',$event)"></label>
-        <label><span>Flow <b>{{ brush.strength | percent }}</b></span><input type="range" min="0.05" max="1" step="0.05" [ngModel]="brush.strength" (ngModelChange)="updateBrush('strength',$event)"></label>
-        <div class="editor-actions"><button [disabled]="!editorHistory.canUndo" (click)="viewer?.undoEdit()">↶ Undo</button><button [disabled]="!editorHistory.canRedo" (click)="viewer?.redoEdit()">↷ Redo</button><button [disabled]="!editorHistory.modified" (click)="viewer?.resetEdits()">Restore</button></div>
-        <p>Build depth gradually with soft passes. The camera is centered and paused while editing.</p>
-      </section></ng-template>
+      <aps-viewer
+        [scene]="project?.scene || null"
+        [mode]="mode"
+        [comparisonUrl]="comparisonUrl"
+        [separation]="separation"
+        [starPresence]="starPresence"
+        [soloLayerId]="soloLayerId"
+        [differenceGain]="differenceGain"
+        [lighting]="lighting"
+        [depthOfField]="depthOfField"
+        [editorEnabled]="editorOpen"
+        [brush]="brush"
+        [cameraPath]="cameraPath"
+        [cameraMovements]="cameraMovements"
+        [activeMovementIndex]="activeMovementIndex"
+        [cameraRoll]="cameraRoll"
+        [cameraPathDuration]="cameraPathDuration"
+        [cameraPathEasing]="cameraPathEasing"
+        [cameraPathFlow]="cameraPathFlow"
+        [transitionMomentum]="transitionMomentum"
+        [videoExport]="videoExport"
+        [textOverlays]="textOverlays"
+        [activeTextOverlayId]="activeTextOverlay?.id || null"
+        (textOverlayPositionChange)="updateTextOverlayPosition($event)"
+        (cameraPathChange)="updateCameraPath($event)"
+        (cameraSequenceChange)="updateCameraSequence($event)"
+        (cameraRollChange)="updateCameraRoll($event)"
+        (playbackState)="handlePlaybackState($event)"
+        (videoExportState)="handleVideoExportState($event)"
+        (historyChange)="editorHistory = $event"
+        (diagnostics)="gpu = $event"
+      ></aps-viewer>
+      <button
+        class="playback-skip"
+        *ngIf="cameraPlayback"
+        (click)="viewer?.skipCameraSequence()"
+      >
+        Skip animation →
+      </button>
+      <div class="empty-state" *ngIf="!project && !busy">
+        <span>✧</span>
+        <h1>Reveal the space inside your image</h1>
+        <p>
+          Import a matched starless and stars pair to build an aligned two-plane
+          scene.
+        </p>
+      </div>
+      <div class="processing" *ngIf="busy">
+        <strong>{{ loadingTitle }}</strong
+        ><span>{{ loadingDetail }}</span>
+        <div
+          class="progress-track"
+          role="progressbar"
+          aria-label="Scene processing progress"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          [attr.aria-valuenow]="loadingProgress | number: '1.0-0'"
+        >
+          <i [style.width.%]="loadingProgress"></i>
+        </div>
+        <small>{{ loadingProgress | number: "1.0-0" }}%</small>
+      </div>
+      <div class="view-tabs" *ngIf="project">
+        <button
+          *ngFor="let item of modes"
+          [class.active]="mode === item.value"
+          (click)="mode = item.value"
+        >
+          {{ item.label }}
+        </button>
+      </div>
+      <div class="camera-tools" *ngIf="project && !editorOpen">
+        <button (click)="viewer?.resetCamera()">Reset camera</button
+        ><button (click)="viewer?.startZoom('in')">＋ Zoom in</button
+        ><button (click)="viewer?.startDriftZoom()">✦ Drift zoom</button
+        ><button (click)="viewer?.startZoom('out')">− Zoom out</button
+        ><button (click)="preview('horizontal')">↔ Path</button
+        ><button (click)="preview('vertical')">↕ Path</button
+        ><button (click)="preview('orbit')">◌ Orbit</button
+        ><button (click)="setEditor(true)">✎ Edit depth</button>
+      </div>
+      <ng-template #cameraPanel
+        ><section class="camera-keyframes" *ngIf="project && !editorOpen">
+          <header class="panel-title">
+            <span>CAMERA MOVEMENTS</span><b>{{ cameraMovements.length }}</b>
+          </header>
+          <div class="movement-header">
+            <div class="movement-tabs">
+              <button
+                *ngFor="let movement of cameraMovements; index as index"
+                [class.active]="activeMovementIndex === index"
+                (click)="selectMovement(index)"
+              >
+                Move {{ index + 1 }}</button
+              ><button
+                class="add-movement"
+                title="Add movement"
+                (click)="addMovement()"
+              >
+                ＋
+              </button>
+            </div>
+            <button
+              class="remove-movement"
+              title="Remove current movement"
+              [disabled]="cameraMovements.length === 1"
+              (click)="removeActiveMovement()"
+            >
+              Remove
+            </button>
+          </div>
+          <div class="sequence-actions">
+            <button
+              class="random-sequence"
+              (click)="viewer?.generateRandomCameraSequence()"
+            >
+              ✦ Generate random sequence</button
+            ><button
+              class="play-path"
+              [disabled]="!canPlaySequence"
+              (click)="viewer?.playCameraPath()"
+            >
+              ▶ Play all
+            </button>
+          </div>
+          <button
+            class="link-movement"
+            *ngIf="activeMovementIndex > 0"
+            [disabled]="!canLinkActiveMovement"
+            (click)="linkActiveMovementToPrevious()"
+          >
+            ↳ Link start to previous end
+          </button>
+          <div class="endpoint-actions">
+            <div class="endpoint start">
+              <button
+                class="mark-start"
+                [class.saved]="cameraPath.start"
+                (click)="viewer?.captureCameraPoint('start')"
+              >
+                ◆ Set start</button
+              ><button
+                class="go-start"
+                [disabled]="!cameraPath.start"
+                (click)="viewer?.goToCameraPoint('start')"
+              >
+                ↤ Go to start
+              </button>
+            </div>
+            <div class="endpoint end">
+              <button
+                class="mark-end"
+                [class.saved]="cameraPath.end"
+                (click)="viewer?.captureCameraPoint('end')"
+              >
+                ◆ Set end</button
+              ><button
+                class="go-end"
+                [disabled]="!cameraPath.end"
+                (click)="viewer?.goToCameraPoint('end')"
+              >
+                ↦ Go to end
+              </button>
+            </div>
+          </div>
+          <label
+            ><span
+              >Rotation <b>{{ cameraRoll | number: "1.0-0" }}°</b></span
+            ><input
+              type="range"
+              min="-180"
+              max="180"
+              step="1"
+              [ngModel]="cameraRoll"
+              (ngModelChange)="updateCameraRoll($event)" /></label
+          ><label
+            ><span
+              >Duration <b>{{ cameraPathDuration | number: "1.0-1" }}s</b></span
+            ><input
+              type="range"
+              min="1"
+              max="20"
+              step="0.5"
+              [ngModel]="cameraPathDuration"
+              (ngModelChange)="updatePathDuration($event)" /></label
+          ><label
+            ><span>Path flow</span
+            ><select
+              [ngModel]="cameraPathFlow"
+              (ngModelChange)="updatePathFlow($event)"
+            >
+              <option
+                *ngFor="let flow of cameraPathFlowOptions"
+                [ngValue]="flow.value"
+              >
+                {{ flow.label }}
+              </option>
+            </select></label
+          ><label *ngIf="cameraPathFlow === 'continuous'"
+            ><span class="momentum-label"
+              >Momentum <b>{{ transitionMomentum | percent: "1.0-0" }}</b></span
+            ><input
+              type="range"
+              min="0"
+              max="0.9"
+              step="0.05"
+              [ngModel]="transitionMomentum"
+              (ngModelChange)="updateTransitionMomentum($event)" /></label
+          ><label *ngIf="cameraPathFlow === 'per-movement'"
+            ><span>Easing</span
+            ><select
+              [ngModel]="cameraPathEasing"
+              (ngModelChange)="updatePathEasing($event)"
+            >
+              <option
+                *ngFor="let easing of cameraPathEasingOptions"
+                [ngValue]="easing.value"
+              >
+                {{ easing.label }}
+              </option>
+            </select></label
+          ><label
+            *ngIf="cameraPathFlow === 'per-movement' && activeMovementIndex > 0"
+            ><span>Transition</span
+            ><select
+              [ngModel]="cameraTransition"
+              (ngModelChange)="updateCameraTransition($event)"
+            >
+              <option value="cut">Cut</option>
+              <option value="crossfade">Crossfade</option>
+            </select></label
+          ><label
+            *ngIf="
+              cameraPathFlow === 'per-movement' &&
+              activeMovementIndex > 0 &&
+              cameraTransition === 'crossfade'
+            "
+            ><span
+              >Crossfade
+              <b>{{ cameraTransitionDuration | number: "1.1-1" }}s</b></span
+            ><input
+              type="range"
+              min="0.2"
+              max="4"
+              step="0.1"
+              [ngModel]="cameraTransitionDuration"
+              (ngModelChange)="updateCameraTransitionDuration($event)" /></label
+          >
+        </section></ng-template
+      >
+      <ng-template #depthOfFieldPanel
+        ><section class="dof-controls" *ngIf="project && !editorOpen">
+          <label class="live-toggle"
+            ><span>Enable experimental DOF</span
+            ><input
+              type="checkbox"
+              [ngModel]="depthOfField.enabled"
+              (ngModelChange)="updateDepthOfField('enabled', $event)" /></label
+          ><ng-container *ngIf="depthOfField.enabled"
+            ><label
+              ><span>Focus</span
+              ><select
+                [ngModel]="depthOfField.focusMode"
+                (ngModelChange)="updateDepthOfFieldMode($event)"
+              >
+                <option value="starless">Starless layer</option>
+                <option value="target">Camera target</option>
+                <option value="layer">Scene layer</option>
+                <option value="manual">Manual distance</option>
+              </select></label
+            ><label *ngIf="depthOfField.focusMode === 'layer'"
+              ><span>Focus layer</span
+              ><select
+                [ngModel]="depthOfField.focusLayerId"
+                (ngModelChange)="updateDepthOfFieldLayer($event)"
+              >
+                <option
+                  *ngFor="let layer of project.scene.layers"
+                  [value]="layer.id"
+                >
+                  {{ layer.name }}
+                </option>
+              </select></label
+            >
+            <div
+              class="keyframed-focus"
+              *ngIf="depthOfField.focusMode === 'manual'"
+            >
+              <label
+                ><span
+                  ><i class="keyframe-icon" aria-hidden="true">◆</i> Focus
+                  distance
+                  <b>{{
+                    depthOfField.focusDistance | number: "1.1-2"
+                  }}</b></span
+                ><input
+                  type="range"
+                  min="0.1"
+                  max="30"
+                  step="0.1"
+                  [ngModel]="depthOfField.focusDistance"
+                  (ngModelChange)="updateDepthOfField('focusDistance', $event)"
+              /></label>
+              <p>
+                <i class="keyframe-icon" aria-hidden="true">◆</i
+                ><span
+                  >Keyframed with camera movements. Selecting or visiting an
+                  endpoint updates this control; its current value is recorded
+                  when you use <b>Set start</b> or <b>Set end</b>.</span
+                >
+              </p>
+            </div>
+            <label
+              ><span
+                >Aperture
+                <b>{{ depthOfField.aperture | number: "1.4-4" }}</b></span
+              ><input
+                type="range"
+                min="0"
+                max="0.01"
+                step="0.00025"
+                [ngModel]="depthOfField.aperture"
+                (ngModelChange)="
+                  updateDepthOfField('aperture', $event)
+                " /></label
+            ><label
+              ><span
+                >Maximum blur
+                <b>{{ depthOfField.maxBlur | number: "1.3-3" }}</b></span
+              ><input
+                type="range"
+                min="0"
+                max="0.02"
+                step="0.001"
+                [ngModel]="depthOfField.maxBlur"
+                (ngModelChange)="
+                  updateDepthOfField('maxBlur', $event)
+                " /></label
+          ></ng-container></section
+      ></ng-template>
+      <ng-template #videoPanel
+        ><section class="video-export" *ngIf="project && !editorOpen">
+          <header>
+            <span>VIDEO VIEWPORT</span
+            ><b>{{ videoExport.width }} × {{ videoExport.height }}</b>
+          </header>
+          <select #videoPreset (change)="applyVideoPreset(+videoPreset.value)">
+            <option
+              *ngFor="let preset of videoPresets; index as index"
+              [value]="index"
+            >
+              {{ preset.label }}
+            </option></select
+          ><label class="light-effect"
+            >Light effect<select
+              [ngModel]="videoExport.lightEffect"
+              (ngModelChange)="updateVideoLightEffect($event)"
+            >
+              <option value="none">None</option>
+              <option value="soft-reflections">Soft reflections</option>
+            </select></label
+          >
+          <div class="video-dimensions">
+            <label
+              >Width<input
+                type="number"
+                min="240"
+                max="3840"
+                step="2"
+                [ngModel]="videoExport.width"
+                (ngModelChange)="updateVideoExport('width', $event)" /></label
+            ><label
+              >Height<input
+                type="number"
+                min="240"
+                max="3840"
+                step="2"
+                [ngModel]="videoExport.height"
+                (ngModelChange)="updateVideoExport('height', $event)" /></label
+            ><label
+              >FPS<select
+                [ngModel]="videoExport.fps"
+                (ngModelChange)="updateVideoExport('fps', $event)"
+              >
+                <option [ngValue]="24">24</option>
+                <option [ngValue]="30">30</option>
+                <option [ngValue]="60">60</option>
+              </select></label
+            >
+          </div>
+        </section></ng-template
+      >
+      <ng-template #captionPanel
+        ><div class="video-export caption-controls">
+          <div class="text-overlays">
+            <div class="text-tabs">
+              <button
+                *ngFor="let item of textOverlays; index as index"
+                [class.active]="activeTextOverlayIndex === index"
+                (click)="activeTextOverlayIndex = index"
+              >
+                Caption {{ index + 1 }}</button
+              ><button
+                class="add-text"
+                title="Add caption"
+                [disabled]="textOverlays.length >= maxTextOverlays"
+                (click)="addTextOverlay()"
+              >
+                ＋</button
+              ><button
+                class="delete-text"
+                *ngIf="activeTextOverlay"
+                title="Remove caption"
+                (click)="removeTextOverlay()"
+              >
+                Remove
+              </button>
+            </div>
+            <ng-container *ngIf="activeTextOverlay as overlay"
+              ><label class="text-content"
+                >Text<textarea
+                  rows="2"
+                  [ngModel]="overlay.text"
+                  (ngModelChange)="updateTextOverlay({ text: $event })"
+                ></textarea>
+              </label>
+              <div class="text-grid">
+                <label
+                  >Start<input
+                    type="number"
+                    min="0"
+                    [max]="cameraSequenceDuration"
+                    step="0.1"
+                    [ngModel]="overlay.start"
+                    (ngModelChange)="
+                      updateTextOverlay({ start: +$event })
+                    " /></label
+                ><label
+                  >Duration<input
+                    type="number"
+                    min="0.2"
+                    [max]="cameraSequenceDuration"
+                    step="0.1"
+                    [ngModel]="overlay.duration"
+                    (ngModelChange)="
+                      updateTextOverlay({ duration: +$event })
+                    " /></label
+                ><label
+                  >Fade in<input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    [ngModel]="overlay.fadeIn"
+                    (ngModelChange)="
+                      updateTextOverlay({ fadeIn: +$event })
+                    " /></label
+                ><label
+                  >Fade out<input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    [ngModel]="overlay.fadeOut"
+                    (ngModelChange)="
+                      updateTextOverlay({ fadeOut: +$event })
+                    " /></label
+                ><label
+                  >Font<select
+                    [ngModel]="overlay.fontFamily"
+                    (ngModelChange)="updateTextOverlay({ fontFamily: $event })"
+                  >
+                    <option value="Cabin">Cabin</option>
+                    <option value="Bitter">Bitter</option>
+                    <option value="DM Sans">DM Sans</option>
+                  </select></label
+                ><label
+                  >Alignment<select
+                    [ngModel]="overlay.alignment"
+                    (ngModelChange)="updateTextOverlay({ alignment: $event })"
+                  >
+                    <option value="left">Left</option>
+                    <option value="center">Center</option>
+                    <option value="right">Right</option>
+                  </select></label
+                ><label
+                  >Size <b>{{ overlay.fontSize | number: "1.1-1" }}%</b
+                  ><input
+                    type="range"
+                    min="1.5"
+                    max="12"
+                    step="0.1"
+                    [ngModel]="overlay.fontSize"
+                    (ngModelChange)="
+                      updateTextOverlay({ fontSize: +$event })
+                    " /></label
+                ><label
+                  >Weight <b>{{ overlay.fontWeight | number: "1.0-0" }}</b
+                  ><input
+                    type="range"
+                    min="400"
+                    max="700"
+                    step="10"
+                    [ngModel]="overlay.fontWeight"
+                    (ngModelChange)="
+                      updateTextOverlay({ fontWeight: +$event })
+                    " /></label
+                ><label
+                  >Letter spacing
+                  <b>{{ overlay.letterSpacing | number: "1.3-3" }}em</b
+                  ><input
+                    type="range"
+                    min="-0.1"
+                    max="0.2"
+                    step="0.005"
+                    [ngModel]="overlay.letterSpacing"
+                    (ngModelChange)="
+                      updateTextOverlay({ letterSpacing: +$event })
+                    " /></label
+                ><label
+                  >Line spacing
+                  <b>{{ overlay.lineHeight | number: "1.2-2" }}×</b
+                  ><input
+                    type="range"
+                    min="0.8"
+                    max="2"
+                    step="0.05"
+                    [ngModel]="overlay.lineHeight"
+                    (ngModelChange)="
+                      updateTextOverlay({ lineHeight: +$event })
+                    " /></label
+                ><label
+                  >Color<input
+                    type="color"
+                    [ngModel]="overlay.color"
+                    (ngModelChange)="
+                      updateTextOverlay({ color: $event })
+                    " /></label
+                ><label
+                  >Opacity <b>{{ overlay.opacity | percent: "1.0-0" }}</b
+                  ><input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    [ngModel]="overlay.opacity"
+                    (ngModelChange)="updateTextOverlay({ opacity: +$event })"
+                /></label>
+              </div>
+              <div class="text-toggles">
+                <label
+                  ><input
+                    type="checkbox"
+                    [ngModel]="overlay.enabled"
+                    (ngModelChange)="updateTextOverlay({ enabled: $event })"
+                  />
+                  Visible</label
+                ><label
+                  ><input
+                    type="checkbox"
+                    [ngModel]="overlay.shadow"
+                    (ngModelChange)="updateTextOverlay({ shadow: $event })"
+                  />
+                  Shadow</label
+                ><label
+                  ><input
+                    type="checkbox"
+                    [ngModel]="overlay.background"
+                    (ngModelChange)="updateTextOverlay({ background: $event })"
+                  />
+                  Background</label
+                ><label
+                  ><input
+                    type="checkbox"
+                    [ngModel]="overlay.motion"
+                    (ngModelChange)="updateTextOverlay({ motion: $event })"
+                  />
+                  Gentle rise</label
+                >
+              </div></ng-container
+            >
+          </div>
+        </div></ng-template
+      >
+      <ng-template #videoActions
+        ><section class="video-export">
+          <label class="light-effect"
+            >Quality<select
+              [ngModel]="videoExport.quality || 'final'"
+              (ngModelChange)="updateVideoQuality($event)"
+            >
+              <option value="draft">Draft · max 720p</option>
+              <option value="final">Final · full resolution</option>
+            </select></label
+          >
+          <p
+            class="realtime-warning"
+            *ngIf="highRealtimeExportLoad && videoExport.quality !== 'draft'"
+          >
+            High-resolution DOF exports can take longer than the video duration.
+            Frame timing remains deterministic.
+          </p>
+          <button
+            class="export-button"
+            [disabled]="videoExporting || !canPlaySequence"
+            (click)="viewer?.exportCameraPath()"
+          >
+            {{
+              videoExporting ? "● Exporting offline…" : "⬇ Export video"
+            }}</button
+          ><small
+            class="render-benchmark"
+            *ngIf="lastVideoBenchmark as benchmark"
+            >Last export · {{ benchmark.width }} × {{ benchmark.height }} ·
+            {{ benchmark.frames }} frames at {{ benchmark.fps }} fps · rendered
+            at {{ benchmark.renderFps | number: "1.1-1" }} fps in
+            {{ benchmark.renderSeconds | number: "1.1-1" }}s · finalized in
+            {{ benchmark.finalizeSeconds | number: "1.1-1" }}s ·
+            {{ benchmark.quality }} · {{ benchmark.gpu }}</small
+          >
+        </section></ng-template
+      >
+      <ng-template #depthEditorPanel
+        ><section class="depth-editor" *ngIf="project && editorOpen">
+          <header>
+            <div>
+              <small>LOCAL DEPTH EDITOR</small
+              ><strong>Paint the nebula response</strong>
+            </div>
+            <button title="Close editor" (click)="setEditor(false)">×</button>
+          </header>
+          <div class="tool-grid">
+            <button
+              *ngFor="let tool of brushTools"
+              [class.active]="brush.tool === tool.value"
+              [title]="tool.hint"
+              (click)="setBrushTool(tool.value)"
+            >
+              {{ tool.label }}
+            </button>
+          </div>
+          <label
+            ><span
+              >Brush size <b>{{ brush.size | number: "1.0-0" }} px</b></span
+            ><input
+              type="range"
+              min="12"
+              max="240"
+              step="4"
+              [ngModel]="brush.size"
+              (ngModelChange)="updateBrush('size', $event)"
+          /></label>
+          <label
+            ><span
+              >Flow <b>{{ brush.strength | percent }}</b></span
+            ><input
+              type="range"
+              min="0.05"
+              max="1"
+              step="0.05"
+              [ngModel]="brush.strength"
+              (ngModelChange)="updateBrush('strength', $event)"
+          /></label>
+          <div class="editor-actions">
+            <button
+              [disabled]="!editorHistory.canUndo"
+              (click)="viewer?.undoEdit()"
+            >
+              ↶ Undo</button
+            ><button
+              [disabled]="!editorHistory.canRedo"
+              (click)="viewer?.redoEdit()"
+            >
+              ↷ Redo</button
+            ><button
+              [disabled]="!editorHistory.modified"
+              (click)="viewer?.resetEdits()"
+            >
+              Restore
+            </button>
+          </div>
+          <p>
+            Build depth gradually with soft passes. The camera is centered and
+            paused while editing.
+          </p>
+        </section></ng-template
+      >
       <div class="error" *ngIf="error">{{ error }}</div>
     </div>
-    <ng-template #scenePanel><div class="panel" *ngIf="project">
-      <div class="panel-head"><div><small>SCENE</small><h2>{{ project.scene.name }}</h2></div><span>{{ project.scene.source.width }} × {{ project.scene.source.height }}</span></div>
-      <section class="detection"><strong>{{ project.scene.processing.detectedStars }}</strong><span>stellar regions detected</span><small>Visual depth heuristic — not astronomical distance</small></section>
-      <section class="global"><label><span>Global separation <b>{{ separation | number:'1.1-1' }}×</b></span><input type="range" min="0" max="3" step="0.1" [ngModel]="separation" (ngModelChange)="updatePreference('separation',$event)"></label></section>
-      <section class="global"><label><span>Star presence <b>{{ starPresence | number:'1.1-1' }}×</b></span><input type="range" min="0.5" max="2.5" step="0.1" [ngModel]="starPresence" (ngModelChange)="updatePreference('starPresence',$event)"></label><small class="control-hint">Boosts faint stars with gentle highlight protection.</small></section>
-      <section class="global"><label><span>Nebula warp <b>{{ (group('nebula')[0].warp_strength || 0) | number:'1.2-2' }}</b></span><input type="range" min="0" max="0.10" step="0.005" [ngModel]="group('nebula')[0].warp_strength" (ngModelChange)="updateWarp($event)"></label></section>
-      <section class="global"><label><span>Fine detail motion <b>{{ (group('nebula')[0].fine_warp_ratio || 0) | number:'1.2-2' }}</b></span><input type="range" min="0" max="1" step="0.05" [ngModel]="group('nebula')[0].fine_warp_ratio" (ngModelChange)="updateNebulaParameter('fine_warp_ratio',$event)"></label></section>
-      <section class="global"><label><span>Stability mask <b>{{ (group('nebula')[0].confidence_amount || 0) | number:'1.2-2' }}</b></span><input type="range" min="0" max="1" step="0.05" [ngModel]="group('nebula')[0].confidence_amount" (ngModelChange)="updateNebulaParameter('confidence_amount',$event)"></label></section>
-      <section class="global"><h3>Scene lighting</h3><label><span>Lighting <b>{{ lighting.intensity | percent:'1.0-0' }}</b></span><input type="range" min="0" max="0.15" step="0.01" [ngModel]="lighting.intensity" (ngModelChange)="updateLighting('intensity',$event)"></label><label><span>Relief <b>{{ lighting.relief | number:'1.1-1' }}×</b></span><input type="range" min="0" max="3" step="0.1" [ngModel]="lighting.relief" (ngModelChange)="updateLighting('relief',$event)"></label><label><span>Direction <b>{{ lighting.direction | number:'1.0-0' }}°</b></span><input type="range" min="-180" max="180" step="5" [ngModel]="lighting.direction" (ngModelChange)="updateLighting('direction',$event)"></label></section>
-      <section class="global"><h3>Cinematic depth of field</h3><label class="live-toggle"><span>Enable experimental DOF</span><input type="checkbox" [ngModel]="depthOfField.enabled" (ngModelChange)="updateDepthOfField('enabled',$event)"></label><ng-container *ngIf="depthOfField.enabled"><label><span>Focus</span><select [ngModel]="depthOfField.focusMode" (ngModelChange)="updateDepthOfFieldMode($event)"><option value="starless">Starless layer</option><option value="target">Camera target</option><option value="layer">Scene layer</option><option value="manual">Manual distance</option></select></label><label *ngIf="depthOfField.focusMode==='layer'"><span>Focus layer</span><select [ngModel]="depthOfField.focusLayerId" (ngModelChange)="updateDepthOfFieldLayer($event)"><option *ngFor="let layer of project.scene.layers" [value]="layer.id">{{ layer.name }}</option></select></label><label *ngIf="depthOfField.focusMode==='manual'"><span>Focus distance <b>{{ depthOfField.focusDistance | number:'1.1-2' }}</b></span><input type="range" min="0.1" max="30" step="0.1" [ngModel]="depthOfField.focusDistance" (ngModelChange)="updateDepthOfField('focusDistance',$event)"></label><label><span>Aperture <b>{{ depthOfField.aperture | number:'1.4-4' }}</b></span><input type="range" min="0" max="0.01" step="0.00025" [ngModel]="depthOfField.aperture" (ngModelChange)="updateDepthOfField('aperture',$event)"></label><label><span>Maximum blur <b>{{ depthOfField.maxBlur | number:'1.3-3' }}</b></span><input type="range" min="0" max="0.02" step="0.001" [ngModel]="depthOfField.maxBlur" (ngModelChange)="updateDepthOfField('maxBlur',$event)"></label><small class="control-hint">Set each camera endpoint while focused on the desired layer to record a cinematic focus pull.</small></ng-container></section>
-      <section class="global"><label class="live-toggle"><span>Invert depth map</span><input type="checkbox" [ngModel]="group('nebula')[0].invert_depth" (ngModelChange)="toggleDepth($event)"></label></section>
-      <section class="global" *ngIf="mode==='difference'"><label><span>Difference gain <b>{{ differenceGain | number:'1.0-0' }}×</b></span><input type="range" min="1" max="32" step="1" [ngModel]="differenceGain" (ngModelChange)="updatePreference('differenceGain',$event)"></label></section>
-      <ng-container *ngFor="let type of ['nebula','stars']">
-        <section class="layer-group">
-          <h3>{{ type === 'nebula' ? 'Nebula layers' : 'Star layers' }} <span>{{ group($any(type)).length }}</span></h3>
-          <details *ngFor="let layer of group($any(type)); trackBy: trackLayer" open>
-            <summary><input type="checkbox" [(ngModel)]="layer.visible" (change)="updateLayer(layer)" (click)="$event.stopPropagation()"><span class="swatch" [class.stars]="layer.type==='stars'"></span><strong>{{ layer.name }}</strong><small>effective z {{ effectiveDepth(layer) | number:'1.3-3' }}</small></summary>
-            <div class="controls"><button class="reset" [class.solo]="soloLayerId===layer.id" (click)="toggleSolo(layer)">{{ soloLayerId===layer.id ? 'Show all layers' : 'Inspect layer only' }}</button>
-              <label><span>Opacity <b>{{ layer.opacity | percent }}</b></span><input type="range" min="0" max="1" step="0.01" [(ngModel)]="layer.opacity" (input)="updateLayer(layer)"></label>
-              <label><span>Depth <b>{{ layer.depth | number:'1.2-2' }}</b></span><input type="range" min="-1" max="1" step="0.01" [(ngModel)]="layer.depth" (input)="updateLayer(layer)"></label>
-              <div class="inline"><label>X<input type="number" step="0.01" [(ngModel)]="layer.transform.position.x" (input)="updateLayer(layer)"></label><label>Y<input type="number" step="0.01" [(ngModel)]="layer.transform.position.y" (input)="updateLayer(layer)"></label><label>Scale<input type="number" min="0.1" step="0.05" [(ngModel)]="layer.transform.scale.x" (ngModelChange)="layer.transform.scale.y=$event; updateLayer(layer)"></label></div>
-              <button class="reset" (click)="resetLayer(layer)">Reset transform</button>
-            </div>
-          </details>
+    <ng-template #scenePanel
+      ><div class="panel" *ngIf="project">
+        <div class="panel-head">
+          <div>
+            <small>SCENE</small>
+            <h2>{{ project.scene.name }}</h2>
+          </div>
+          <span
+            >{{ project.scene.source.width }} ×
+            {{ project.scene.source.height }}</span
+          >
+        </div>
+        <section class="detection">
+          <strong>{{ project.scene.processing.detectedStars }}</strong
+          ><span>stellar regions detected</span
+          ><small>Visual depth heuristic — not astronomical distance</small>
         </section>
-      </ng-container>
-      <section class="metrics refinement"><h3>Motion evaluation</h3><div><span>Edge risk P95 <b>{{ +project.scene.processing.parameters['motionEdgeRiskP95'] | number:'1.3-3' }}</b></span><span>Protected area <b>{{ +project.scene.processing.parameters['protectedAreaPercent'] | number:'1.1-1' }}%</b></span></div><h3>GPU preview</h3><div *ngIf="gpu"><span>Texture limit <b>{{ gpu.maxTextureSize }} px</b></span><span>Preview <b>{{ gpu.previewWidth }} × {{ gpu.previewHeight }}</b></span></div><p *ngIf="project.scene.processing.parameters['previewDownsampled']">Full-resolution processing retained; interactive textures were downsampled for stable GPU playback.</p><p *ngIf="gpu?.sourceTooLarge">The source exceeds this GPU's native texture limit; the bounded preview is active.</p></section>
-      <section class="metrics"><h3>Combined reconstruction</h3><div><span>MAE <b>{{ project.metrics.combined.mae | number:'1.5-5' }}</b></span><span>RMSE <b>{{ project.metrics.combined.rmse | number:'1.5-5' }}</b></span><span>Max error <b>{{ project.metrics.combined.maxError | number:'1.5-5' }}</b></span><span>Over tolerance <b>{{ project.metrics.combined.pixelsOverTolerancePercent | number:'1.2-2' }}%</b></span></div><h3 *ngIf="project.metrics.stars">Star conservation</h3><div *ngIf="project.metrics.stars as metric"><span>MAE <b>{{ metric.mae | number:'1.6-6' }}</b></span><span>RMSE <b>{{ metric.rmse | number:'1.6-6' }}</b></span></div><p *ngFor="let warning of project.warnings">{{ warning }}</p></section>
-    </div></ng-template>
+        <section class="global">
+          <label
+            ><span
+              >Global separation
+              <b>{{ separation | number: "1.1-1" }}×</b></span
+            ><input
+              type="range"
+              min="0"
+              max="3"
+              step="0.1"
+              [ngModel]="separation"
+              (ngModelChange)="updatePreference('separation', $event)"
+          /></label>
+        </section>
+        <section class="global">
+          <label
+            ><span
+              >Star presence <b>{{ starPresence | number: "1.1-1" }}×</b></span
+            ><input
+              type="range"
+              min="0.5"
+              max="2.5"
+              step="0.1"
+              [ngModel]="starPresence"
+              (ngModelChange)="
+                updatePreference('starPresence', $event)
+              " /></label
+          ><small class="control-hint"
+            >Boosts faint stars with gentle highlight protection.</small
+          >
+        </section>
+        <section class="global">
+          <label
+            ><span
+              >Nebula warp
+              <b>{{
+                group("nebula")[0].warp_strength || 0 | number: "1.2-2"
+              }}</b></span
+            ><input
+              type="range"
+              min="0"
+              max="0.10"
+              step="0.005"
+              [ngModel]="group('nebula')[0].warp_strength"
+              (ngModelChange)="updateWarp($event)"
+          /></label>
+        </section>
+        <section class="global">
+          <label
+            ><span
+              >Fine detail motion
+              <b>{{
+                group("nebula")[0].fine_warp_ratio || 0 | number: "1.2-2"
+              }}</b></span
+            ><input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              [ngModel]="group('nebula')[0].fine_warp_ratio"
+              (ngModelChange)="
+                updateNebulaParameter('fine_warp_ratio', $event)
+              "
+          /></label>
+        </section>
+        <section class="global">
+          <label
+            ><span
+              >Stability mask
+              <b>{{
+                group("nebula")[0].confidence_amount || 0 | number: "1.2-2"
+              }}</b></span
+            ><input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              [ngModel]="group('nebula')[0].confidence_amount"
+              (ngModelChange)="
+                updateNebulaParameter('confidence_amount', $event)
+              "
+          /></label>
+        </section>
+        <section class="global">
+          <h3>Scene lighting</h3>
+          <label
+            ><span
+              >Lighting <b>{{ lighting.intensity | percent: "1.0-0" }}</b></span
+            ><input
+              type="range"
+              min="0"
+              max="0.15"
+              step="0.01"
+              [ngModel]="lighting.intensity"
+              (ngModelChange)="updateLighting('intensity', $event)" /></label
+          ><label
+            ><span
+              >Relief <b>{{ lighting.relief | number: "1.1-1" }}×</b></span
+            ><input
+              type="range"
+              min="0"
+              max="3"
+              step="0.1"
+              [ngModel]="lighting.relief"
+              (ngModelChange)="updateLighting('relief', $event)" /></label
+          ><label
+            ><span
+              >Direction
+              <b>{{ lighting.direction | number: "1.0-0" }}°</b></span
+            ><input
+              type="range"
+              min="-180"
+              max="180"
+              step="5"
+              [ngModel]="lighting.direction"
+              (ngModelChange)="updateLighting('direction', $event)"
+          /></label>
+        </section>
+        <section class="global">
+          <label class="live-toggle"
+            ><span>Invert depth map</span
+            ><input
+              type="checkbox"
+              [ngModel]="group('nebula')[0].invert_depth"
+              (ngModelChange)="toggleDepth($event)"
+          /></label>
+        </section>
+        <section class="global" *ngIf="mode === 'difference'">
+          <label
+            ><span
+              >Difference gain
+              <b>{{ differenceGain | number: "1.0-0" }}×</b></span
+            ><input
+              type="range"
+              min="1"
+              max="32"
+              step="1"
+              [ngModel]="differenceGain"
+              (ngModelChange)="updatePreference('differenceGain', $event)"
+          /></label>
+        </section>
+        <ng-container *ngFor="let type of ['nebula', 'stars']">
+          <section class="layer-group">
+            <h3>
+              {{ type === "nebula" ? "Nebula layers" : "Star layers" }}
+              <span>{{ group($any(type)).length }}</span>
+            </h3>
+            <details
+              *ngFor="let layer of group($any(type)); trackBy: trackLayer"
+              open
+            >
+              <summary>
+                <input
+                  type="checkbox"
+                  [(ngModel)]="layer.visible"
+                  (change)="updateLayer(layer)"
+                  (click)="$event.stopPropagation()"
+                /><span
+                  class="swatch"
+                  [class.stars]="layer.type === 'stars'"
+                ></span
+                ><strong>{{ layer.name }}</strong
+                ><small
+                  >effective z
+                  {{ effectiveDepth(layer) | number: "1.3-3" }}</small
+                >
+              </summary>
+              <div class="controls">
+                <button
+                  class="reset"
+                  [class.solo]="soloLayerId === layer.id"
+                  (click)="toggleSolo(layer)"
+                >
+                  {{
+                    soloLayerId === layer.id
+                      ? "Show all layers"
+                      : "Inspect layer only"
+                  }}
+                </button>
+                <label
+                  ><span
+                    >Opacity <b>{{ layer.opacity | percent }}</b></span
+                  ><input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    [(ngModel)]="layer.opacity"
+                    (input)="updateLayer(layer)"
+                /></label>
+                <label
+                  ><span
+                    >Depth <b>{{ layer.depth | number: "1.2-2" }}</b></span
+                  ><input
+                    type="range"
+                    min="-1"
+                    max="1"
+                    step="0.01"
+                    [(ngModel)]="layer.depth"
+                    (input)="updateLayer(layer)"
+                /></label>
+                <div class="inline">
+                  <label
+                    >X<input
+                      type="number"
+                      step="0.01"
+                      [(ngModel)]="layer.transform.position.x"
+                      (input)="updateLayer(layer)" /></label
+                  ><label
+                    >Y<input
+                      type="number"
+                      step="0.01"
+                      [(ngModel)]="layer.transform.position.y"
+                      (input)="updateLayer(layer)" /></label
+                  ><label
+                    >Scale<input
+                      type="number"
+                      min="0.1"
+                      step="0.05"
+                      [(ngModel)]="layer.transform.scale.x"
+                      (ngModelChange)="
+                        layer.transform.scale.y = $event; updateLayer(layer)
+                      "
+                  /></label>
+                </div>
+                <button class="reset" (click)="resetLayer(layer)">
+                  Reset transform
+                </button>
+              </div>
+            </details>
+          </section>
+        </ng-container>
+        <section class="metrics refinement">
+          <h3>Motion evaluation</h3>
+          <div>
+            <span
+              >Edge risk P95
+              <b>{{
+                +project.scene.processing.parameters["motionEdgeRiskP95"]
+                  | number: "1.3-3"
+              }}</b></span
+            ><span
+              >Protected area
+              <b
+                >{{
+                  +project.scene.processing.parameters["protectedAreaPercent"]
+                    | number: "1.1-1"
+                }}%</b
+              ></span
+            >
+          </div>
+          <h3>GPU preview</h3>
+          <div *ngIf="gpu">
+            <span
+              >Texture limit <b>{{ gpu.maxTextureSize }} px</b></span
+            ><span
+              >Preview
+              <b>{{ gpu.previewWidth }} × {{ gpu.previewHeight }}</b></span
+            >
+          </div>
+          <p *ngIf="project.scene.processing.parameters['previewDownsampled']">
+            Full-resolution processing retained; interactive textures were
+            downsampled for stable GPU playback.
+          </p>
+          <p *ngIf="gpu?.sourceTooLarge">
+            The source exceeds this GPU's native texture limit; the bounded
+            preview is active.
+          </p>
+        </section>
+        <section class="metrics">
+          <h3>Combined reconstruction</h3>
+          <div>
+            <span
+              >MAE
+              <b>{{ project.metrics.combined.mae | number: "1.5-5" }}</b></span
+            ><span
+              >RMSE
+              <b>{{ project.metrics.combined.rmse | number: "1.5-5" }}</b></span
+            ><span
+              >Max error
+              <b>{{
+                project.metrics.combined.maxError | number: "1.5-5"
+              }}</b></span
+            ><span
+              >Over tolerance
+              <b
+                >{{
+                  project.metrics.combined.pixelsOverTolerancePercent
+                    | number: "1.2-2"
+                }}%</b
+              ></span
+            >
+          </div>
+          <h3 *ngIf="project.metrics.stars">Star conservation</h3>
+          <div *ngIf="project.metrics.stars as metric">
+            <span
+              >MAE <b>{{ metric.mae | number: "1.6-6" }}</b></span
+            ><span
+              >RMSE <b>{{ metric.rmse | number: "1.6-6" }}</b></span
+            >
+          </div>
+          <p *ngFor="let warning of project.warnings">{{ warning }}</p>
+        </section>
+      </div></ng-template
+    >
   </section>
 </main>
 
-<ng-template #processingPanel><div class="processing-settings">
-  <div>
-    <label>Warp strength<input type="range" min="0" max="0.10" step="0.005" [(ngModel)]="starSettings.warpStrength" (change)="savePreferences()"><b>{{ starSettings.warpStrength }}</b></label>
-    <label>Map smoothing<input type="range" min="2" max="80" step="2" [(ngModel)]="starSettings.depthSmoothing" (change)="savePreferences()"><b>{{ starSettings.depthSmoothing }}</b></label>
-    <label>Absorption cue<input type="range" min="0" max="1" step="0.05" [(ngModel)]="starSettings.absorptionStrength" (change)="savePreferences()"><b>{{ starSettings.absorptionStrength }}</b></label>
-    <label>Fine detail motion<input type="range" min="0" max="1" step="0.05" [(ngModel)]="starSettings.fineWarpRatio" (change)="savePreferences()"><b>{{ starSettings.fineWarpRatio }}</b></label>
-    <label>Stability mask<input type="range" min="0" max="1" step="0.05" [(ngModel)]="starSettings.confidenceAmount" (change)="savePreferences()"><b>{{ starSettings.confidenceAmount }}</b></label>
-    <label class="check"><input type="checkbox" [(ngModel)]="starSettings.invertDepth" (change)="savePreferences()"> Invert depth</label>
-    <label>Layers<input type="number" min="2" max="8" [(ngModel)]="starSettings.layerCount" (change)="savePreferences()"></label>
-    <label>Depth assignment<select [(ngModel)]="starSettings.distribution" (change)="savePreferences()"><option value="balanced">Balanced</option><option value="brightness">Brightness</option><option value="size">Apparent size</option></select></label>
-    <label>Sensitivity<input type="range" min="1" max="8" step="0.25" [(ngModel)]="starSettings.sensitivity" (change)="savePreferences()"><b>{{ starSettings.sensitivity }}</b></label>
-    <label>Background<select [(ngModel)]="starSettings.backgroundMode" (change)="savePreferences()"><option value="auto">Conservative auto</option><option value="none">Preserve unchanged</option></select></label>
-  </div>
-</div></ng-template>
+<ng-template #processingPanel
+  ><div class="processing-settings">
+    <div>
+      <label
+        >Warp strength<input
+          type="range"
+          min="0"
+          max="0.10"
+          step="0.005"
+          [(ngModel)]="starSettings.warpStrength"
+          (change)="savePreferences()"
+        /><b>{{ starSettings.warpStrength }}</b></label
+      >
+      <label
+        >Map smoothing<input
+          type="range"
+          min="2"
+          max="80"
+          step="2"
+          [(ngModel)]="starSettings.depthSmoothing"
+          (change)="savePreferences()"
+        /><b>{{ starSettings.depthSmoothing }}</b></label
+      >
+      <label
+        >Absorption cue<input
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          [(ngModel)]="starSettings.absorptionStrength"
+          (change)="savePreferences()"
+        /><b>{{ starSettings.absorptionStrength }}</b></label
+      >
+      <label
+        >Fine detail motion<input
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          [(ngModel)]="starSettings.fineWarpRatio"
+          (change)="savePreferences()"
+        /><b>{{ starSettings.fineWarpRatio }}</b></label
+      >
+      <label
+        >Stability mask<input
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          [(ngModel)]="starSettings.confidenceAmount"
+          (change)="savePreferences()"
+        /><b>{{ starSettings.confidenceAmount }}</b></label
+      >
+      <label class="check"
+        ><input
+          type="checkbox"
+          [(ngModel)]="starSettings.invertDepth"
+          (change)="savePreferences()"
+        />
+        Invert depth</label
+      >
+      <label
+        >Layers<input
+          type="number"
+          min="2"
+          max="8"
+          [(ngModel)]="starSettings.layerCount"
+          (change)="savePreferences()"
+      /></label>
+      <label
+        >Depth assignment<select
+          [(ngModel)]="starSettings.distribution"
+          (change)="savePreferences()"
+        >
+          <option value="balanced">Balanced</option>
+          <option value="brightness">Brightness</option>
+          <option value="size">Apparent size</option>
+        </select></label
+      >
+      <label
+        >Sensitivity<input
+          type="range"
+          min="1"
+          max="8"
+          step="0.25"
+          [(ngModel)]="starSettings.sensitivity"
+          (change)="savePreferences()"
+        /><b>{{ starSettings.sensitivity }}</b></label
+      >
+      <label
+        >Background<select
+          [(ngModel)]="starSettings.backgroundMode"
+          (change)="savePreferences()"
+        >
+          <option value="auto">Conservative auto</option>
+          <option value="none">Preserve unchanged</option>
+        </select></label
+      >
+    </div>
+  </div></ng-template
+>

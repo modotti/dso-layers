@@ -101,10 +101,15 @@ describe('AppComponent', () => {
     expect(component.cameraPathDuration).toBe(12);
     expect(component.cameraPathEasing).toBe('ease-out');
   });
-  it('limits the camera timeline to five movements', () => {
+  it('allows camera timelines with more than five movements', () => {
     const component = TestBed.createComponent(AppComponent).componentInstance;
     for (let index = 0; index < 8; index++) component.addMovement();
-    expect(component.cameraMovements.length).toBe(5);
+    expect(component.cameraMovements.length).toBe(9);
+  });
+  it('allows one-second camera movements', () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    component.updatePathDuration(1);
+    expect(component.cameraPathDuration).toBe(1);
   });
   it('centers the camera when depth editing begins', () => {
     const component = TestBed.createComponent(AppComponent).componentInstance;

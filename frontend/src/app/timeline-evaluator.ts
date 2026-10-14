@@ -8,6 +8,7 @@ export interface TimelineState extends CameraPathPose {
   timeSeconds: number;
   complete: boolean;
   overlays: ReadonlyArray<{ id: string; opacity: number; motionProgress: number }>;
+  crossfade?: { outgoing: CameraPathPose; incoming: CameraPathPose; progress: number };
 }
 
 export interface TimelineEvaluatorOptions {
@@ -16,10 +17,26 @@ export interface TimelineEvaluatorOptions {
   overlays?: readonly TextOverlay[];
 }
 
-const durationOf = (movement: CameraMovement): number => THREE.MathUtils.clamp(movement.duration, 5, 20);
+const durationOf = (movement: CameraMovement): number => THREE.MathUtils.clamp(movement.duration, 1, 20);
 
-export function timelineDuration(movements: readonly CameraMovement[]): number {
-  return movements.reduce((total, movement) => total + durationOf(movement), 0);
+export function movementTransitionDuration(movement: CameraMovement, index: number, previousDuration = Infinity): number {
+  if (!index || movement.transition !== 'crossfade') return 0;
+  return THREE.MathUtils.clamp(movement.transitionDuration ?? .75, .2, Math.min(4, durationOf(movement), previousDuration));
+}
+
+export function timelineDuration(movements: readonly CameraMovement[], flow: CameraPathFlow = 'per-movement'): number {
+  return movements.reduce((total, movement, index) => total + durationOf(movement) - (flow === 'per-movement' ? movementTransitionDuration(movement, index, index ? durationOf(movements[index - 1]) : Infinity) : 0), 0);
+}
+
+export function timelineMovementIndex(movements: readonly CameraMovement[], timeSeconds: number): number {
+  if (!movements.length) return 0;
+  let remaining = Math.max(0, timeSeconds);
+  for (let index = 0; index < movements.length - 1; index++) {
+    const duration = durationOf(movements[index]) - movementTransitionDuration(movements[index + 1], index + 1, durationOf(movements[index]));
+    if (remaining < duration) return index;
+    remaining -= duration;
+  }
+  return movements.length - 1;
 }
 
 export function easeTimelinePhase(phase: number, easing: CameraMovement['easing']): number {
@@ -57,7 +74,7 @@ export function createTimelineEvaluator(
 ): (timeSeconds: number) => TimelineState {
   const valid = movements.filter(movement => movement.path.start && movement.path.end);
   if (!valid.length || valid.length !== movements.length) throw new Error('Every camera movement needs a start and end pose.');
-  const totalDuration = timelineDuration(valid);
+  const totalDuration = timelineDuration(valid, options.flow);
   const overlays = options.overlays ?? [];
   const poses = [valid[0].path.start!, ...valid.map(movement => movement.path.end!)];
 
@@ -84,24 +101,35 @@ export function createTimelineEvaluator(
     };
   }
 
-  const boundaries = valid.reduce<number[]>((values, movement) => [...values, values.at(-1)! + durationOf(movement)], [0]);
-  return requestedTime => {
-    const timeSeconds = THREE.MathUtils.clamp(requestedTime, 0, totalDuration);
-    const movementIndex = Math.min(valid.length - 1, boundaries.findIndex((end, index) => index > 0 && timeSeconds < end) - 1);
-    const index = movementIndex < 0 ? valid.length - 1 : movementIndex;
-    const movement = valid[index];
+  const starts = valid.reduce<number[]>((values, movement, index) => index === 0
+    ? [0]
+    : [...values, values[index - 1] + durationOf(valid[index - 1]) - movementTransitionDuration(movement, index, durationOf(valid[index - 1]))], []);
+  const poseAt = (movement: CameraMovement, localTime: number): CameraPathPose => {
     const start = movement.path.start!; const end = movement.path.end!;
-    const phase = easeTimelinePhase((timeSeconds - boundaries[index]) / durationOf(movement), movement.easing);
+    const phase = easeTimelinePhase(localTime / durationOf(movement), movement.easing);
     const lerpTuple = (from: [number, number, number], to: [number, number, number]): [number, number, number] => [
       THREE.MathUtils.lerp(from[0], to[0], phase), THREE.MathUtils.lerp(from[1], to[1], phase), THREE.MathUtils.lerp(from[2], to[2], phase),
     ];
+    return { position: lerpTuple(start.position, end.position), target: lerpTuple(start.target, end.target), roll: THREE.MathUtils.lerp(start.roll ?? 0, end.roll ?? 0, phase), focusDistance: interpolateFocusDistance(start.focusDistance, end.focusDistance, phase) };
+  };
+  return requestedTime => {
+    const timeSeconds = THREE.MathUtils.clamp(requestedTime, 0, totalDuration);
+    const incomingIndex = valid.findIndex((movement, index) => index > 0 && timeSeconds >= starts[index] && timeSeconds < starts[index] + movementTransitionDuration(movement, index, durationOf(valid[index - 1])));
+    let index = incomingIndex >= 0 ? incomingIndex : 0;
+    if (incomingIndex < 0) for (let candidate = 1; candidate < valid.length; candidate++) if (timeSeconds >= starts[candidate]) index = candidate;
+    const movement = valid[index];
+    const pose = poseAt(movement, timeSeconds - starts[index]);
+    const overlap = movementTransitionDuration(movement, index, index ? durationOf(valid[index - 1]) : Infinity);
+    const crossfade = incomingIndex >= 0
+      ? { outgoing: poseAt(valid[index - 1], timeSeconds - starts[index - 1]), incoming: pose, progress: THREE.MathUtils.clamp((timeSeconds - starts[index]) / overlap, 0, 1) }
+      : undefined;
+    const displayed = crossfade?.incoming ?? pose;
     return {
       timeSeconds,
-      position: lerpTuple(start.position, end.position), target: lerpTuple(start.target, end.target),
-      roll: THREE.MathUtils.lerp(start.roll ?? 0, end.roll ?? 0, phase),
-      focusDistance: interpolateFocusDistance(start.focusDistance, end.focusDistance, phase),
+      ...displayed,
       complete: timeSeconds >= totalDuration,
       overlays: overlaysAt(overlays, timeSeconds),
+      crossfade,
     };
   };
 }

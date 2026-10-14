@@ -1,5 +1,5 @@
 import { CameraMovement, TextOverlay } from './models';
-import { createTimelineEvaluator } from './timeline-evaluator';
+import { createTimelineEvaluator, timelineDuration, timelineMovementIndex } from './timeline-evaluator';
 
 describe('createTimelineEvaluator', () => {
   const movement = (id: string, from: number, to: number, duration = 5): CameraMovement => ({ id, duration, easing: 'linear', path: { start: { position: [from, 0, 5], target: [0, 0, 0], roll: from, focusDistance: from + 2 }, end: { position: [to, 0, 5], target: [1, 0, 0], roll: to, focusDistance: to + 2 } } });
@@ -24,5 +24,33 @@ describe('createTimelineEvaluator', () => {
     expect(evaluate(2.5).focusDistance).toBeCloseTo(5.75);
     expect(evaluate(2).overlays[0].opacity).toBeCloseTo(.8);
     expect(evaluate(5).position).toEqual([10, 0, 5]);
+  });
+
+  it('identifies the active movement at timeline boundaries', () => {
+    const movements = [movement('a', 0, 10, 1), movement('b', 10, 20, 2), movement('c', 20, 30, 3)];
+    expect(timelineMovementIndex(movements, 0)).toBe(0);
+    expect(timelineMovementIndex(movements, .999)).toBe(0);
+    expect(timelineMovementIndex(movements, 1)).toBe(1);
+    expect(timelineMovementIndex(movements, 3)).toBe(2);
+    expect(timelineMovementIndex(movements, 99)).toBe(2);
+  });
+
+  it('overlaps crossfaded movements and exposes both camera poses', () => {
+    const movements = [movement('a', 0, 10, 5), { ...movement('b', 20, 30, 5), transition: 'crossfade' as const, transitionDuration: 1 }];
+    const evaluate = createTimelineEvaluator(movements, { flow: 'per-movement', transitionMomentum: 0 });
+    expect(timelineDuration(movements)).toBe(9);
+    const state = evaluate(4.5);
+    expect(state.crossfade?.progress).toBeCloseTo(.5);
+    expect(state.crossfade?.outgoing.position[0]).toBeCloseTo(9);
+    expect(state.crossfade?.incoming.position[0]).toBeCloseTo(21);
+    expect(state.crossfade).toBeDefined();
+    expect(state.position).toEqual(state.crossfade!.incoming.position);
+    expect(timelineMovementIndex(movements, 4)).toBe(1);
+  });
+
+  it('allows crossfades up to four seconds', () => {
+    const movements = [movement('a', 0, 10, 5), { ...movement('b', 20, 30, 5), transition: 'crossfade' as const, transitionDuration: 4 }];
+    expect(timelineDuration(movements)).toBe(6);
+    expect(createTimelineEvaluator(movements, { flow: 'per-movement', transitionMomentum: 0 })(3).crossfade?.progress).toBeCloseTo(.5);
   });
 });
