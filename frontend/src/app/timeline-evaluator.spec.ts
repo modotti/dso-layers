@@ -1,5 +1,5 @@
 import { CameraMovement, TextOverlay } from './models';
-import { createTimelineEvaluator } from './timeline-evaluator';
+import { createTimelineEvaluator, timelineMovementIndex } from './timeline-evaluator';
 
 describe('createTimelineEvaluator', () => {
   const movement = (id: string, from: number, to: number, duration = 5): CameraMovement => ({ id, duration, easing: 'linear', path: { start: { position: [from, 0, 5], target: [0, 0, 0], roll: from, focusDistance: from + 2 }, end: { position: [to, 0, 5], target: [1, 0, 0], roll: to, focusDistance: to + 2 } } });
@@ -24,5 +24,14 @@ describe('createTimelineEvaluator', () => {
     expect(evaluate(2.5).focusDistance).toBeCloseTo(5.75);
     expect(evaluate(2).overlays[0].opacity).toBeCloseTo(.8);
     expect(evaluate(5).position).toEqual([10, 0, 5]);
+  });
+
+  it('identifies the active movement at timeline boundaries', () => {
+    const movements = [movement('a', 0, 10, 1), movement('b', 10, 20, 2), movement('c', 20, 30, 3)];
+    expect(timelineMovementIndex(movements, 0)).toBe(0);
+    expect(timelineMovementIndex(movements, .999)).toBe(0);
+    expect(timelineMovementIndex(movements, 1)).toBe(1);
+    expect(timelineMovementIndex(movements, 3)).toBe(2);
+    expect(timelineMovementIndex(movements, 99)).toBe(2);
   });
 });

@@ -16,10 +16,21 @@ export interface TimelineEvaluatorOptions {
   overlays?: readonly TextOverlay[];
 }
 
-const durationOf = (movement: CameraMovement): number => THREE.MathUtils.clamp(movement.duration, 5, 20);
+const durationOf = (movement: CameraMovement): number => THREE.MathUtils.clamp(movement.duration, 1, 20);
 
 export function timelineDuration(movements: readonly CameraMovement[]): number {
   return movements.reduce((total, movement) => total + durationOf(movement), 0);
+}
+
+export function timelineMovementIndex(movements: readonly CameraMovement[], timeSeconds: number): number {
+  if (!movements.length) return 0;
+  let remaining = Math.max(0, timeSeconds);
+  for (let index = 0; index < movements.length - 1; index++) {
+    const duration = durationOf(movements[index]);
+    if (remaining < duration) return index;
+    remaining -= duration;
+  }
+  return movements.length - 1;
 }
 
 export function easeTimelinePhase(phase: number, easing: CameraMovement['easing']): number {

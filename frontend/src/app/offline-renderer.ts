@@ -49,7 +49,7 @@ export async function runRenderJob(
   sink: FrameSink,
   options: RunRenderJobOptions = {},
 ): Promise<void> {
-  const schedule = createFrameSchedule(manifest.timeline.movements.reduce((sum, item) => sum + Math.max(5, Math.min(20, item.duration)), 0), manifest.output.fps);
+  const schedule = createFrameSchedule(manifest.timeline.movements.reduce((sum, item) => sum + Math.max(1, Math.min(20, item.duration)), 0), manifest.output.fps);
   const now = options.now ?? (() => performance.now()); const started = now();
   let renderedFrames = 0;
   const emit = (status: RenderJobEvent['status'], message?: string) => options.onEvent?.({ jobId: manifest.jobId, status, renderedFrames, totalFrames: schedule.length, message });
