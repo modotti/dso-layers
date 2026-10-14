@@ -8,7 +8,17 @@ const completedOutputs = new Set();
 
 function send(message) { if (process.send) process.send({ protocolVersion: 1, ...message }); }
 function fail(jobId, message, code = 'execution_failed') { send({ type: 'failed', jobId, error: { code, message } }); }
-function expectedFrames(manifest) { return Math.round(manifest.timeline.movements.reduce((total, movement) => total + Math.max(5, Math.min(20, movement.duration)), 0) * manifest.output.fps); }
+function movementDuration(movement) { return Math.max(1, Math.min(20, movement.duration)); }
+function transitionDuration(movement, index, previousDuration = Infinity) {
+  if (!index || movement.transition !== 'crossfade') return 0;
+  return Math.max(.2, Math.min(4, movementDuration(movement), previousDuration, movement.transitionDuration ?? .75));
+}
+function expectedFrames(manifest) {
+  const movements = manifest.timeline.movements;
+  const duration = movements.reduce((total, movement, index) => total + movementDuration(movement)
+    - (manifest.timeline.flow === 'per-movement' ? transitionDuration(movement, index, index ? movementDuration(movements[index - 1]) : Infinity) : 0), 0);
+  return Math.round(duration * manifest.output.fps);
+}
 function remove(pathname) { try { fs.rmSync(pathname, { force: true }); } catch { /* Best-effort cleanup. */ } }
 
 function start(command) {
