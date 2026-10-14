@@ -480,15 +480,31 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       }
       globalTime = ((low + high) / 2) * total;
     }
+    const endpoint = this.scrubProgress === 0
+      ? movement.path.start
+      : this.scrubProgress === 100
+        ? movement.path.end
+        : undefined;
+    if (endpoint) {
+      this.previewStarted = 0;
+      this.zoomStarted = 0;
+      this.driftZoom = false;
+      this.scrubTimelineSeconds = globalTime;
+      this.activeCrossfade = undefined;
+      this.applyCameraPose(endpoint);
+      this.controls.update();
+      return;
+    }
+    const previewSequence = complete && this.cameraPathFlow === "continuous";
     const evaluate = createTimelineEvaluator(
-      complete ? this.cameraMovements : [movement],
+      previewSequence ? this.cameraMovements : [movement],
       {
-        flow: complete ? this.cameraPathFlow : "per-movement",
+        flow: previewSequence ? "continuous" : "per-movement",
         transitionMomentum: this.transitionMomentum,
         overlays: [],
       },
     );
-    const state = evaluate(complete ? globalTime : localTime);
+    const state = evaluate(previewSequence ? globalTime : localTime);
     this.previewStarted = 0;
     this.zoomStarted = 0;
     this.driftZoom = false;
