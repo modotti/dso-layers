@@ -52,6 +52,7 @@ import {
 import { AuthoredBokehPass } from "./authored-bokeh-pass";
 import {
   createTimelineEvaluator,
+  movementTransitionDuration,
   TimelineState,
   timelineDuration,
   timelineMovementIndex,
@@ -173,6 +174,13 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   private comparisonCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   private overlayWorld = new THREE.Scene();
   private overlayCamera = new THREE.OrthographicCamera(0, 1, 1, 0, -1, 1);
+  private crossfadeWorld = new THREE.Scene();
+  private crossfadeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  private crossfadeOutgoingTarget?: THREE.WebGLRenderTarget;
+  private crossfadeIncomingTarget?: THREE.WebGLRenderTarget;
+  private crossfadeIncomingMaterial?: THREE.MeshBasicMaterial;
+  private crossfadeOutgoingMaterial?: THREE.MeshBasicMaterial;
+  private activeCrossfade?: TimelineState["crossfade"];
   private overlayMeshes: TextOverlayMesh[] = [];
   private overlayWidth = 0;
   private overlayHeight = 0;
@@ -356,6 +364,10 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     this.disposeMeshes();
     this.disposeTextOverlays();
     this.disposePostProcessing();
+    this.crossfadeOutgoingTarget?.dispose();
+    this.crossfadeIncomingTarget?.dispose();
+    this.crossfadeIncomingMaterial?.dispose();
+    this.crossfadeOutgoingMaterial?.dispose();
     this.renderer?.dispose();
   }
   resetCamera(): void {
@@ -365,6 +377,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     this.cameraPathStarted = 0;
     this.scrubTimelineSeconds = null;
     this.scrubProgress = 0;
+    this.activeCrossfade = undefined;
     this.activeFocusDistance = undefined;
     this.driftZoom = false;
     this.activeCameraRoll = 0;
@@ -441,12 +454,15 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     this.scrubProgress = THREE.MathUtils.clamp(progress, 0, 100);
     const localTime = (this.scrubProgress / 100) * this.scrubDurationSeconds;
     const prefix = this.cameraMovements.slice(0, this.activeMovementIndex);
-    let globalTime = timelineDuration(prefix) + localTime;
+    const incomingOverlap = this.cameraPathFlow === "per-movement"
+      ? movementTransitionDuration(movement, this.activeMovementIndex, prefix.at(-1)?.duration)
+      : 0;
+    let globalTime = timelineDuration(prefix, this.cameraPathFlow) - incomingOverlap + localTime;
     const complete = this.cameraMovements.every(
       (item) => item.path.start && item.path.end,
     );
     if (complete && this.cameraPathFlow === "continuous") {
-      const total = timelineDuration(this.cameraMovements);
+      const total = timelineDuration(this.cameraMovements, this.cameraPathFlow);
       const targetPhase =
         (this.activeMovementIndex + this.scrubProgress / 100) /
         this.cameraMovements.length;
@@ -489,6 +505,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     this.previewStarted = 0;
     this.zoomStarted = 0;
     this.cameraPathStarted = 0;
+    this.activeCrossfade = undefined;
     this.driftZoom = false;
     this.activeCameraRoll = pose.roll ?? 0;
     this.activeFocusDistance = pose.focusDistance;
@@ -880,7 +897,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
         const finishing = firstValueFrom(
           this.api.finishVideoRender(
             renderId,
-            Math.round(timelineDuration(movements) * this.videoExport.fps),
+            Math.round(timelineDuration(movements, this.cameraPathFlow) * this.videoExport.fps),
           ),
         );
         const cancelled = new Promise<never>((_, reject) =>
@@ -998,7 +1015,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
         if (this.destroyed) return;
         this.restoreRendererBehindCover();
         const frames = Math.round(
-          timelineDuration(movements) * this.videoExport.fps,
+          timelineDuration(movements, this.cameraPathFlow) * this.videoExport.fps,
         );
         const gl = this.renderer.getContext();
         const benchmark: VideoRenderBenchmark = {
@@ -1106,7 +1123,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       encodedMp4 = outcome.value;
       this.restoreRendererBehindCover();
       const frames = Math.round(
-        timelineDuration(movements) * this.videoExport.fps,
+        timelineDuration(movements, this.cameraPathFlow) * this.videoExport.fps,
       );
       const gl = this.renderer.getContext();
       const benchmark: VideoRenderBenchmark = {
@@ -1144,10 +1161,15 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   }
   private applyTimelineState(state: TimelineState): void {
     if (!this.camera || !this.controls) return;
-    this.camera.position.fromArray(state.position);
-    this.controls.target.fromArray(state.target);
-    this.activeCameraRoll = state.roll ?? 0;
-    this.activeFocusDistance = state.focusDistance;
+    this.activeCrossfade = state.crossfade;
+    this.applyCameraPose(state);
+  }
+  private applyCameraPose(pose: CameraPathPose): void {
+    if (!this.camera || !this.controls) return;
+    this.camera.position.fromArray(pose.position);
+    this.controls.target.fromArray(pose.target);
+    this.activeCameraRoll = pose.roll ?? 0;
+    this.activeFocusDistance = pose.focusDistance;
     this.camera.up.set(0, 1, 0);
     this.camera.lookAt(this.controls.target);
     this.applyCameraRoll();
@@ -2700,6 +2722,34 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   }
   private renderFrame(elapsed: number | null): void {
     if (!this.renderer || !this.camera) return;
+    if (
+      this.activeCrossfade &&
+      this.cameraPathFlow === "per-movement" &&
+      (this.cameraPathStarted || this.exporting)
+    ) {
+      const transition = this.activeCrossfade;
+      this.ensureCrossfadeResources();
+      if (
+        this.crossfadeOutgoingTarget &&
+        this.crossfadeIncomingTarget &&
+        this.crossfadeIncomingMaterial &&
+        this.crossfadeOutgoingMaterial
+      ) {
+        this.applyCameraPose(transition.outgoing);
+        this.renderSceneFrameToTarget(elapsed, this.crossfadeOutgoingTarget);
+        this.applyCameraPose(transition.incoming);
+        this.renderSceneFrameToTarget(elapsed, this.crossfadeIncomingTarget);
+        this.crossfadeOutgoingMaterial.opacity = 1 - transition.progress;
+        this.renderer.setRenderTarget(null);
+        this.renderer.clear();
+        this.renderer.render(this.crossfadeWorld, this.crossfadeCamera);
+      }
+      return;
+    }
+    this.renderSceneFrame(elapsed);
+  }
+  private renderSceneFrame(elapsed: number | null): void {
+    if (!this.renderer || !this.camera) return;
     this.updateWarpViewOffset();
     this.updateTextOverlays(elapsed);
     if (this.mode === "3d" && this.depthOfField.enabled && this.composer) {
@@ -2713,6 +2763,49 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     if (this.scene && this.mode === "3d" && this.overlayMeshes.length) {
       this.renderer.clearDepth();
       this.renderer.render(this.overlayWorld, this.overlayCamera);
+    }
+  }
+  private renderSceneFrameToTarget(
+    elapsed: number | null,
+    target: THREE.WebGLRenderTarget,
+  ): void {
+    if (!this.renderer || !this.camera) return;
+    this.updateWarpViewOffset();
+    this.updateTextOverlays(elapsed);
+    this.renderer.setRenderTarget(target);
+    this.renderer.clear();
+    this.renderer.render(this.world, this.camera);
+    if (this.scene && this.overlayMeshes.length) {
+      this.renderer.clearDepth();
+      this.renderer.render(this.overlayWorld, this.overlayCamera);
+    }
+  }
+  private ensureCrossfadeResources(): void {
+    if (!this.renderer) return;
+    const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    if (!this.crossfadeOutgoingTarget || this.crossfadeOutgoingTarget.width !== size.x || this.crossfadeOutgoingTarget.height !== size.y) {
+      this.crossfadeOutgoingTarget?.dispose();
+      this.crossfadeIncomingTarget?.dispose();
+      this.crossfadeOutgoingTarget = new THREE.WebGLRenderTarget(size.x, size.y, { depthBuffer: true });
+      this.crossfadeIncomingTarget = new THREE.WebGLRenderTarget(size.x, size.y, { depthBuffer: true });
+      this.crossfadeOutgoingTarget.texture.colorSpace = THREE.SRGBColorSpace;
+      this.crossfadeIncomingTarget.texture.colorSpace = THREE.SRGBColorSpace;
+      if (!this.crossfadeIncomingMaterial || !this.crossfadeOutgoingMaterial) {
+        this.crossfadeIncomingMaterial = new THREE.MeshBasicMaterial({ depthTest: false, depthWrite: false, toneMapped: false });
+        this.crossfadeOutgoingMaterial = new THREE.MeshBasicMaterial({ transparent: true, depthTest: false, depthWrite: false, toneMapped: false });
+        const geometry = new THREE.PlaneGeometry(2, 2);
+        const incomingPlane = new THREE.Mesh(geometry, this.crossfadeIncomingMaterial);
+        const outgoingPlane = new THREE.Mesh(geometry, this.crossfadeOutgoingMaterial);
+        incomingPlane.position.z = outgoingPlane.position.z = -0.5;
+        incomingPlane.frustumCulled = outgoingPlane.frustumCulled = false;
+        incomingPlane.renderOrder = 0;
+        outgoingPlane.renderOrder = 1;
+        this.crossfadeWorld.add(incomingPlane, outgoingPlane);
+      }
+      this.crossfadeIncomingMaterial.map = this.crossfadeIncomingTarget.texture;
+      this.crossfadeOutgoingMaterial.map = this.crossfadeOutgoingTarget.texture;
+      this.crossfadeIncomingMaterial.needsUpdate = true;
+      this.crossfadeOutgoingMaterial.needsUpdate = true;
     }
   }
   private updateWarpViewOffset(): void {
@@ -2735,14 +2828,12 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     const state = this.playbackEvaluator(
       (now - this.playbackSequenceStarted) / 1000,
     );
-    this.camera.position.fromArray(state.position);
-    this.controls.target.fromArray(state.target);
-    this.activeCameraRoll = state.roll ?? 0;
-    this.activeFocusDistance = state.focusDistance;
+    this.applyTimelineState(state);
     this.controls.update();
     if (state.complete) {
       this.cameraPathStarted = 0;
       this.playbackEvaluator = undefined;
+      this.activeCrossfade = undefined;
       this.controls.enabled = !this.editorEnabled;
       this.zone.run(() => this.cameraRollChange.emit(this.activeCameraRoll));
       this.setPlaybackMode(false);

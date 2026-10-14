@@ -349,6 +349,32 @@
                 {{ easing.label }}
               </option>
             </select></label
+          ><label
+            *ngIf="cameraPathFlow === 'per-movement' && activeMovementIndex > 0"
+            ><span>Transition</span
+            ><select
+              [ngModel]="cameraTransition"
+              (ngModelChange)="updateCameraTransition($event)"
+            >
+              <option value="cut">Cut</option>
+              <option value="crossfade">Crossfade</option>
+            </select></label
+          ><label
+            *ngIf="
+              cameraPathFlow === 'per-movement' &&
+              activeMovementIndex > 0 &&
+              cameraTransition === 'crossfade'
+            "
+            ><span
+              >Crossfade
+              <b>{{ cameraTransitionDuration | number: "1.1-1" }}s</b></span
+            ><input
+              type="range"
+              min="0.2"
+              max="4"
+              step="0.1"
+              [ngModel]="cameraTransitionDuration"
+              (ngModelChange)="updateCameraTransitionDuration($event)" /></label
           >
         </section></ng-template
       >

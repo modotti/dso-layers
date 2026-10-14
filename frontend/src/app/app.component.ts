@@ -2,9 +2,10 @@ import { CommonModule } from '@angular/common';
 import { Component, OnDestroy, ViewChild, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ApiService } from './api.service';
-import { CameraMovement, CameraPathEasing, CameraPathFlow, CameraPathState, DepthBrushSettings, DepthBrushTool, DepthOfFieldFocusMode, DepthOfFieldSettings, EditorHistoryState, GpuDiagnostics, LightingSettings, ParallaxPath, ProjectResponse, SceneLayer, TextOverlay, VideoExportSettings, VideoExportState, VideoLightEffect, VideoRenderBenchmark, ViewerMode } from './models';
+import { CameraMovement, CameraPathEasing, CameraPathFlow, CameraPathState, CameraTransition, DepthBrushSettings, DepthBrushTool, DepthOfFieldFocusMode, DepthOfFieldSettings, EditorHistoryState, GpuDiagnostics, LightingSettings, ParallaxPath, ProjectResponse, SceneLayer, TextOverlay, VideoExportSettings, VideoExportState, VideoLightEffect, VideoRenderBenchmark, ViewerMode } from './models';
 import { ViewerComponent } from './viewer/viewer.component';
 import { effectiveLayerDepth } from './layer-depth';
+import { timelineDuration } from './timeline-evaluator';
 
 @Component({ selector: 'aps-root', standalone: true, imports: [CommonModule, FormsModule, ViewerComponent], templateUrl: './app.component.html', styleUrls: ['./app.component.css', './phase2.css', './depth-editor.css', './lighting.css', './loading.css', './video-export.css'] })
 export class AppComponent implements OnDestroy {
@@ -44,10 +45,12 @@ export class AppComponent implements OnDestroy {
   get cameraPath(): CameraPathState { return this.activeMovement.path; }
   get cameraPathDuration(): number { return this.activeMovement.duration; }
   get cameraPathEasing(): CameraPathEasing { return this.activeMovement.easing; }
+  get cameraTransition(): CameraTransition { return this.activeMovement.transition ?? 'cut'; }
+  get cameraTransitionDuration(): number { return this.activeMovement.transitionDuration ?? .75; }
   get canPlaySequence(): boolean { return this.cameraMovements.length > 0 && this.cameraMovements.every(movement => !!movement.path.start && !!movement.path.end); }
   get canLinkActiveMovement(): boolean { return this.activeMovementIndex > 0 && !!this.cameraMovements[this.activeMovementIndex - 1]?.path.end; }
   get activeTextOverlay(): TextOverlay | undefined { return this.textOverlays[this.activeTextOverlayIndex]; }
-  get cameraSequenceDuration(): number { return this.cameraMovements.reduce((total, movement) => total + Math.max(1, Math.min(20, movement.duration)), 0); }
+  get cameraSequenceDuration(): number { return timelineDuration(this.cameraMovements, this.cameraPathFlow); }
   get highRealtimeExportLoad(): boolean { return this.depthOfField.enabled && this.videoExport.width * this.videoExport.height * this.videoExport.fps >= 1920 * 1080 * 30; }
   choose(event: Event, role: 'starless' | 'stars' | 'depthMap'): void { const file = (event.target as HTMLInputElement).files?.[0] ?? null; this[role] = file; this.error = ''; }
   generate(): void { if (!this.starless || !this.stars || this.busy) return; this.savePreferences(); this.busy = true; this.error = ''; this.startLoadingProgress(); this.api.createProject(this.starless, this.stars, this.depthMap, this.starSettings).subscribe({ next: project => { this.stopLoadingProgress(); this.setLoadingProgress(100); window.setTimeout(() => { const previousProjectId = this.project?.projectId; this.applyLayerPreferences(project); this.project = project; this.mode = '3d'; this.soloLayerId = null; this.busy = false; if (previousProjectId && previousProjectId !== project.projectId) this.api.deleteProject(previousProjectId); }, 250); }, error: (error: Error) => { this.stopLoadingProgress(); this.busy = false; this.error = error.message; } }); }
@@ -91,6 +94,8 @@ export class AppComponent implements OnDestroy {
   updateCameraRoll(value: number): void { this.cameraRoll = Math.max(-180, Math.min(180, Number(value) || 0)); this.savePreferences(); }
   updatePathDuration(value: number): void { this.replaceActiveMovement({ duration: Math.max(1, Math.min(20, Number(value) || 7)) }); }
   updatePathEasing(value: CameraPathEasing): void { this.replaceActiveMovement({ easing: value }); }
+  updateCameraTransition(value: CameraTransition): void { this.replaceActiveMovement({ transition: value }); }
+  updateCameraTransitionDuration(value: number): void { this.replaceActiveMovement({ transitionDuration: Math.max(.2, Math.min(4, Number(value) || .75)) }); }
   updatePathFlow(value: CameraPathFlow): void { this.cameraPathFlow = value; this.savePreferences(); }
   updateTransitionMomentum(value: number): void { this.transitionMomentum = Math.max(0, Math.min(.9, Number(value) || 0)); this.savePreferences(); }
   selectMovement(index: number): void { if (!this.cameraMovements[index]) return; this.activeMovementIndex = index; const pose = this.cameraMovements[index].path.start ?? this.cameraMovements[index].path.end; if (pose) { this.cameraRoll = pose.roll ?? 0; if (pose.focusDistance !== undefined) this.depthOfField = { ...this.depthOfField, focusDistance: pose.focusDistance }; this.viewer?.goToPose(pose); } }
