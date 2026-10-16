@@ -6,7 +6,12 @@
       ><small>Bring your astrophotography to life through motion.</small>
     </div>
   </div>
-  <div class="imports">
+  <div
+    class="imports"
+    [class.playback-locked]="cameraPlayback"
+    [attr.inert]="cameraPlayback ? '' : null"
+    [attr.aria-disabled]="cameraPlayback"
+  >
     <label class="file"
       ><span>Starless</span><b>{{ starless?.name || "Choose image" }}</b
       ><input
@@ -68,7 +73,13 @@
           {{ sidebarCollapsed ? "›" : "‹" }}
         </button>
       </header>
-      <div class="workflow-scroll" *ngIf="!sidebarCollapsed">
+      <div
+        class="workflow-scroll"
+        *ngIf="!sidebarCollapsed"
+        [class.playback-locked]="cameraPlayback"
+        [attr.inert]="cameraPlayback ? '' : null"
+        [attr.aria-disabled]="cameraPlayback"
+      >
         <details class="workflow-section" *ngIf="project">
           <summary><span>Scene</span><small>Layers & effects</small></summary>
           <ng-container *ngTemplateOutlet="scenePanel"></ng-container>

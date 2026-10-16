@@ -77,6 +77,13 @@ describe('AppComponent', () => {
     component.updateVideoExport('height', 720);
     expect(component.highRealtimeExportLoad).toBeFalse();
   });
+  it('tracks playback so editing controls can be locked', () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    component.handlePlaybackState(true);
+    expect(component.cameraPlayback).toBeTrue();
+    component.handlePlaybackState(false);
+    expect(component.cameraPlayback).toBeFalse();
+  });
   it('inherits the previous caption settings without copying its text', () => {
     const component = TestBed.createComponent(AppComponent).componentInstance;
     component.addTextOverlay();
