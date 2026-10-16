@@ -49,6 +49,8 @@ npm run desktop:dist        # DMG and ZIP release artifacts
 
 Desktop packaging builds a standalone backend with PyInstaller and bundles FFmpeg/FFprobe. Install backend development dependencies once with `cd backend && .venv/bin/pip install -e '.[dev]'`. Unsigned local packages are intended for smoke testing; public macOS artifacts must be signed and notarized as described in [the desktop distribution plan](docs/desktop-distribution-plan.md).
 
+The desktop app can save the current workspace as a `.paralastro` project folder. The folder contains a versioned `project.json`, generated scene textures, edited depth and confidence maps, and image overlays. Opening it restores the scene directly from those assets without repeating image processing. Keep the folder and its `assets` subfolder together.
+
 ## Test and build
 
 ```bash

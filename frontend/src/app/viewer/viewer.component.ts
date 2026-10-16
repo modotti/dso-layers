@@ -2475,6 +2475,15 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       confidence: new Uint8ClampedArray(maps.confidenceImage.data),
     };
   }
+  projectAssetOverrides(): Record<string, string> {
+    const maps = this.editable;
+    if (!maps) return {};
+    return {
+      "nebula-depth.png": maps.depthCanvas.toDataURL("image/png"),
+      "nebula-depth-inverted.png": maps.invertedCanvas.toDataURL("image/png"),
+      "nebula-confidence.png": maps.confidenceCanvas.toDataURL("image/png"),
+    };
+  }
   private restoreSnapshot(snapshot: EditSnapshot): void {
     const maps = this.editable;
     if (!maps) return;

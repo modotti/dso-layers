@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('astroRenderWorker', {
 contextBridge.exposeInMainWorld('paralastroDesktop', {
   loadPreferences() { return ipcRenderer.sendSync('desktop:preferences:load'); },
   savePreferences(value) { ipcRenderer.send('desktop:preferences:save', value); },
+  saveProject(document, assetOverrides, currentPath) { return ipcRenderer.invoke('desktop:project:save', document, assetOverrides, currentPath); },
+  openProject() { return ipcRenderer.invoke('desktop:project:open'); },
   showLogs() { return ipcRenderer.invoke('desktop:show-logs'); },
   onServiceFailure(listener) {
     const handler = (_event, failure) => listener(failure);

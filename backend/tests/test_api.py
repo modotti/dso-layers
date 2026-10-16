@@ -1,3 +1,4 @@
+import json
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -112,6 +113,34 @@ def test_project_assets_can_be_released():
     assert client.get(media_url).status_code == 200
     assert client.delete(f"/api/v1/projects/{body['projectId']}").status_code == 204
     assert client.get(media_url).status_code == 404
+
+
+def test_saved_project_assets_can_be_imported_without_reprocessing():
+    created = client.post("/api/v1/projects", files={"starless": ("base.png", png(4, 3, (10, 20, 30)), "image/png"), "stars": ("stars.png", png(4, 3, (0, 0, 0)), "image/png")}).json()
+    asset_urls = {
+        value
+        for layer in created["scene"]["layers"]
+        for value in (layer.get("texture_url"), layer.get("depth_texture_url"), layer.get("inverted_depth_texture_url"), layer.get("confidence_texture_url"))
+        if value
+    }
+    asset_urls.update(created["comparison"].values())
+    portable = json.loads(json.dumps(created))
+
+    def make_relative(value):
+        if isinstance(value, dict): return {key: make_relative(item) for key, item in value.items()}
+        if isinstance(value, list): return [make_relative(item) for item in value]
+        if isinstance(value, str) and value.startswith("/media/"): return f"assets/{value.rsplit('/', 1)[-1]}"
+        return value
+
+    portable = make_relative(portable)
+    files = [("project", ("project.json", json.dumps(portable), "application/json"))]
+    files.extend(("assets", (url.rsplit("/", 1)[-1], client.get(url).content, "image/png")) for url in sorted(asset_urls))
+    response = client.post("/api/v1/projects/import", files=files)
+    assert response.status_code == 200
+    restored = response.json()
+    assert restored["projectId"] != created["projectId"]
+    assert restored["scene"]["name"] == created["scene"]["name"]
+    assert client.get(restored["scene"]["layers"][0]["texture_url"]).content == client.get(created["scene"]["layers"][0]["texture_url"]).content
 
 
 def test_webm_video_can_be_converted_to_mp4(monkeypatch):

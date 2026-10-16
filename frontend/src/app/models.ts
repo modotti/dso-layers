@@ -18,6 +18,13 @@ export interface ProjectResponse {
   comparison: { originalUrl: string; reconstructedUrl: string; differenceUrl: string };
   warnings: string[];
 }
+export interface SavedProjectWorkspace {
+  starSettings: { layerCount: number; distribution: string; sensitivity: number; backgroundMode: string; warpStrength: number; depthSmoothing: number; absorptionStrength: number; invertDepth: boolean; fineWarpRatio: number; confidenceAmount: number };
+  separation: number; starPresence: number; differenceGain: number; brush: DepthBrushSettings; lighting: LightingSettings; depthOfField: DepthOfFieldSettings;
+  cameraMovements: CameraMovement[]; cameraPathFlow: CameraPathFlow; transitionMomentum: number; cameraRoll: number;
+  videoExport: VideoExportSettings; textOverlays: TextOverlay[]; imageOverlays: ImageOverlay[]; sidebarCollapsed: boolean;
+}
+export interface SavedProjectDocument { format: 'paralastro-project'; formatVersion: 1; applicationVersion: string; project: ProjectResponse; workspace: SavedProjectWorkspace }
 export type ViewerMode = '3d' | 'original' | 'reconstructed' | 'difference' | 'depth' | 'confidence';
 export type DepthBrushTool = 'near' | 'far' | 'smooth' | 'protect';
 export interface DepthBrushSettings { tool: DepthBrushTool; size: number; strength: number }

@@ -389,6 +389,50 @@ async def create_project(
     return ProjectResponse(projectId=project_id, scene=scene, metrics=MetricGroups(stars=star_metrics, combined=combined), comparison=ComparisonUrls(originalUrl=f"{prefix}/original.png", reconstructedUrl=f"{prefix}/reconstructed.png", differenceUrl=f"{prefix}/difference.png"), warnings=warnings)
 
 
+@app.post("/api/v1/projects/import", response_model=ProjectResponse, response_model_by_alias=True)
+async def import_project(project: UploadFile = File(...), assets: list[UploadFile] = File(...)) -> ProjectResponse:
+    try:
+        saved = ProjectResponse.model_validate_json(await project.read())
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail={"code": "invalid_project", "message": "The saved project manifest is invalid.", "context": {}}) from exc
+    if len(assets) > 64:
+        raise HTTPException(status_code=422, detail={"code": "too_many_assets", "message": "The saved project contains too many assets.", "context": {}})
+    project_id = str(uuid4())
+    available: set[str] = set()
+    for upload in assets:
+        name = Path(upload.filename or "").name
+        if not name or name != (upload.filename or "") or Path(name).suffix.lower() not in {".png", ".jpg", ".jpeg"}:
+            raise HTTPException(status_code=422, detail={"code": "invalid_asset", "message": "The saved project contains an unsupported asset.", "context": {}})
+        payload = await _read_upload(upload)
+        media_type = "image/jpeg" if Path(name).suffix.lower() in {".jpg", ".jpeg"} else "image/png"
+        store.put_media(project_id, name, MediaAsset(payload, media_type))
+        available.add(name)
+
+    document = saved.model_dump(by_alias=True)
+    prefix = f"/media/{project_id}"
+
+    def restore_urls(value: object) -> object:
+        if isinstance(value, dict):
+            return {key: restore_urls(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [restore_urls(item) for item in value]
+        if isinstance(value, str) and (value.startswith("assets/") or value.startswith("/media/")):
+            name = Path(value).name
+            if name not in available:
+                raise HTTPException(status_code=422, detail={"code": "missing_asset", "message": f"The saved project asset '{name}' is missing.", "context": {}})
+            return f"{prefix}/{name}"
+        return value
+
+    try:
+        restored = restore_urls(document)
+    except HTTPException:
+        store.delete_project(project_id)
+        raise
+    assert isinstance(restored, dict)
+    restored["projectId"] = project_id
+    return ProjectResponse.model_validate(restored)
+
+
 @app.get("/media/{project_id}/{name}")
 def media(project_id: str, name: str) -> Response:
     asset = store.get_media(project_id, name)

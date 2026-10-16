@@ -6,7 +6,7 @@ const net = require('node:net');
 const path = require('node:path');
 
 const BACKEND_START_TIMEOUT_MS = 30_000;
-let backend; let worker; let server; let mainWindow; let quitting = false;
+let backend; let worker; let server; let mainWindow; let quitting = false; let backendPort = 0; let activeProjectPath = null;
 const completedRenderOutputs = new Set();
 
 function executableName(name) { return process.platform === 'win32' ? `${name}.exe` : name; }
@@ -14,6 +14,90 @@ function resourcePath(...parts) { return app.isPackaged ? path.join(process.reso
 function bundledTool(name) { return app.isPackaged ? resourcePath('bin', executableName(name)) : name; }
 function logPath() { return path.join(app.getPath('logs'), 'paralastro-desktop.log'); }
 function preferencesPath() { return path.join(app.getPath('userData'), 'preferences.json'); }
+function safeProjectName(value) { return String(value || 'Untitled').replace(/[^a-z0-9 _.-]+/gi, '-').replace(/^\.+|\.+$/g, '').trim() || 'Untitled'; }
+function assetName(value) { return path.basename(new URL(String(value), 'http://localhost').pathname); }
+function projectAssetUrls(document) {
+  const urls = new Set();
+  const visit = value => {
+    if (Array.isArray(value)) value.forEach(visit);
+    else if (value && typeof value === 'object') Object.values(value).forEach(visit);
+    else if (typeof value === 'string' && value.startsWith('/media/')) urls.add(value);
+  };
+  visit(document.project); visit(document.workspace?.imageOverlays);
+  return [...urls];
+}
+function replaceAssetUrls(value) {
+  if (Array.isArray(value)) return value.map(replaceAssetUrls);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, replaceAssetUrls(item)]));
+  return typeof value === 'string' && value.startsWith('/media/') ? `assets/${assetName(value)}` : value;
+}
+function decodeDataUrl(value) {
+  const match = /^data:(image\/(?:png|jpeg));base64,([a-z0-9+/=]+)$/i.exec(value);
+  if (!match) return null;
+  return { extension: match[1].toLowerCase() === 'image/jpeg' ? 'jpg' : 'png', content: Buffer.from(match[2], 'base64') };
+}
+async function fetchBackendAsset(url) {
+  if (!backendPort || !String(url).startsWith('/media/')) throw new Error('Invalid project asset URL.');
+  const response = await fetch(`http://127.0.0.1:${backendPort}${url}`);
+  if (!response.ok) throw new Error(`Could not read project asset ${assetName(url)}.`);
+  return Buffer.from(await response.arrayBuffer());
+}
+async function writeProjectFolder(target, document, assetOverrides) {
+  const temporary = `${target}.tmp-${process.pid}-${Date.now()}`; const backup = `${target}.backup-${process.pid}`;
+  await fs.promises.mkdir(path.join(temporary, 'assets'), { recursive: true });
+  try {
+    const saved = structuredClone(document); const written = new Set();
+    for (const overlay of saved.workspace?.imageOverlays ?? []) {
+      const decoded = typeof overlay.dataUrl === 'string' ? decodeDataUrl(overlay.dataUrl) : null;
+      if (!decoded) continue;
+      const name = `overlay-${safeProjectName(overlay.id)}.${decoded.extension}`;
+      await fs.promises.writeFile(path.join(temporary, 'assets', name), decoded.content, { mode: 0o600 });
+      overlay.dataUrl = `assets/${name}`; written.add(name);
+    }
+    for (const url of projectAssetUrls(saved)) {
+      const name = assetName(url); if (!name || written.has(name)) continue;
+      const override = assetOverrides?.[name]; const decoded = typeof override === 'string' ? decodeDataUrl(override) : null;
+      await fs.promises.writeFile(path.join(temporary, 'assets', name), decoded?.content ?? await fetchBackendAsset(url), { mode: 0o600 });
+      written.add(name);
+    }
+    const portable = replaceAssetUrls(saved);
+    await fs.promises.writeFile(path.join(temporary, 'project.json'), `${JSON.stringify(portable, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+    await fs.promises.rm(backup, { recursive: true, force: true });
+    if (fs.existsSync(target)) await fs.promises.rename(target, backup);
+    await fs.promises.rename(temporary, target);
+    await fs.promises.rm(backup, { recursive: true, force: true });
+  } catch (error) {
+    await fs.promises.rm(temporary, { recursive: true, force: true });
+    if (!fs.existsSync(target) && fs.existsSync(backup)) await fs.promises.rename(backup, target);
+    throw error;
+  }
+}
+async function importProjectFolder(target) {
+  const manifestPath = path.join(target, 'project.json');
+  if (!fs.existsSync(manifestPath) || fs.statSync(manifestPath).size > 10_000_000) throw new Error('This folder does not contain a valid Paralastro project.');
+  const document = JSON.parse(await fs.promises.readFile(manifestPath, 'utf8'));
+  if (document?.format !== 'paralastro-project' || document?.formatVersion !== 1 || !document.project || !document.workspace || !Array.isArray(document.workspace.cameraMovements) || !Array.isArray(document.workspace.textOverlays) || !Array.isArray(document.workspace.imageOverlays) || !document.workspace.starSettings || !document.workspace.brush || !document.workspace.lighting || !document.workspace.depthOfField || !document.workspace.videoExport) throw new Error('This project format is not supported.');
+  const assetsRoot = path.join(target, 'assets'); const names = await fs.promises.readdir(assetsRoot);
+  if (!names.length || names.length > 64) throw new Error('The project asset collection is invalid.');
+  const form = new FormData();
+  form.append('project', new Blob([JSON.stringify(document.project)], { type: 'application/json' }), 'project.json');
+  for (const name of names) {
+    if (name !== path.basename(name) || !/\.(png|jpe?g)$/i.test(name)) continue;
+    const assetPath = path.join(assetsRoot, name); if ((await fs.promises.lstat(assetPath)).isSymbolicLink()) throw new Error('Project assets cannot be symbolic links.');
+    const content = await fs.promises.readFile(assetPath);
+    form.append('assets', new Blob([content], { type: /\.jpe?g$/i.test(name) ? 'image/jpeg' : 'image/png' }), name);
+  }
+  const response = await fetch(`http://127.0.0.1:${backendPort}/api/v1/projects/import`, { method: 'POST', body: form });
+  if (!response.ok) { const body = await response.json().catch(() => null); throw new Error(body?.detail?.message || 'The project assets could not be restored.'); }
+  document.project = await response.json();
+  for (const overlay of document.workspace.imageOverlays ?? []) {
+    if (typeof overlay.dataUrl === 'string' && overlay.dataUrl.startsWith('assets/')) {
+      const name = path.basename(overlay.dataUrl); if (!names.includes(name)) throw new Error(`The saved project asset '${name}' is missing.`);
+      overlay.dataUrl = `/media/${document.project.projectId}/${name}`;
+    }
+  }
+  return document;
+}
 function writeLog(scope, value) {
   const line = `[${new Date().toISOString()}] [${scope}] ${String(value).trim()}\n`;
   try { const target = logPath(); fs.mkdirSync(path.dirname(target), { recursive: true }); if (fs.existsSync(target) && fs.statSync(target).size > 2_000_000) { const previous = `${target}.previous`; fs.rmSync(previous, { force: true }); fs.renameSync(target, previous); } fs.appendFileSync(target, line); } catch { /* Logging must never stop the application. */ }
@@ -78,6 +162,21 @@ function registerDesktopIpc() {
     try { const target = preferencesPath(); fs.mkdirSync(path.dirname(target), { recursive: true }); const temporary = `${target}.tmp`; fs.writeFileSync(temporary, value, { encoding: 'utf8', mode: 0o600 }); fs.renameSync(temporary, target); }
     catch (error) { writeLog('preferences', error.message); }
   });
+  ipcMain.handle('desktop:project:save', async (_event, document, assetOverrides, currentPath) => {
+    if (!document || document.format !== 'paralastro-project' || document.formatVersion !== 1) throw new Error('The project data is invalid.');
+    let target = typeof currentPath === 'string' && activeProjectPath && path.resolve(currentPath) === activeProjectPath ? activeProjectPath : null;
+    if (!target) {
+      const selection = await dialog.showSaveDialog(mainWindow, { title: 'Save Paralastro project', defaultPath: path.join(app.getPath('documents'), `${safeProjectName(document.project?.scene?.name)}.paralastro`), filters: [{ name: 'Paralastro project', extensions: ['paralastro'] }] });
+      if (selection.canceled || !selection.filePath) return null;
+      target = selection.filePath.endsWith('.paralastro') ? selection.filePath : `${selection.filePath}.paralastro`;
+    }
+    activeProjectPath = path.resolve(target); await writeProjectFolder(activeProjectPath, document, assetOverrides ?? {}); return activeProjectPath;
+  });
+  ipcMain.handle('desktop:project:open', async () => {
+    const selection = await dialog.showOpenDialog(mainWindow, { title: 'Open Paralastro project', defaultPath: app.getPath('documents'), properties: ['openDirectory'] });
+    if (selection.canceled || !selection.filePaths[0]) return null;
+    const target = path.resolve(selection.filePaths[0]); const document = await importProjectFolder(target); activeProjectPath = target; return { path: target, document };
+  });
 }
 
 function startWorker(window) {
@@ -99,7 +198,7 @@ function startWorker(window) {
 }
 
 async function createApplication() {
-  registerDesktopIpc(); const backendPort = await findAvailablePort(); startBackend(backendPort); await waitForBackend(backendPort); const frontendPort = await startFrontendServer(backendPort);
+  registerDesktopIpc(); backendPort = await findAvailablePort(); startBackend(backendPort); await waitForBackend(backendPort); const frontendPort = await startFrontendServer(backendPort);
   mainWindow = new BrowserWindow({ width: 1440, height: 960, minWidth: 1024, minHeight: 700, show: false, backgroundColor: '#03050a', title: `Paralastro ${app.getVersion()}`, webPreferences: { preload: path.join(__dirname, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true } });
   startWorker(mainWindow); mainWindow.once('ready-to-show', () => mainWindow.show()); await mainWindow.loadURL(`http://127.0.0.1:${frontendPort}`);
 }
@@ -109,4 +208,4 @@ if (!hasInstanceLock) app.quit();
 else { app.on('second-instance', () => { if (mainWindow) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); mainWindow.focus(); } }); app.whenReady().then(createApplication).catch(async error => { writeLog('startup', error.stack || error.message); await dialog.showMessageBox({ type: 'error', title: 'Paralastro could not start', message: 'The local application services could not be started.', detail: `${error.message}\n\nLog: ${logPath()}` }); app.quit(); }); }
 
 app.on('window-all-closed', () => app.quit());
-app.on('before-quit', () => { quitting = true; ipcMain.removeAllListeners('render-worker:command'); ipcMain.removeAllListeners('desktop:preferences:load'); ipcMain.removeAllListeners('desktop:preferences:save'); ipcMain.removeHandler('render-worker:save-output'); ipcMain.removeHandler('desktop:show-logs'); if (worker?.connected) worker.send({ protocolVersion: 1, type: 'shutdown' }); backend?.kill(); server?.close(); });
+app.on('before-quit', () => { quitting = true; ipcMain.removeAllListeners('render-worker:command'); ipcMain.removeAllListeners('desktop:preferences:load'); ipcMain.removeAllListeners('desktop:preferences:save'); ipcMain.removeHandler('render-worker:save-output'); ipcMain.removeHandler('desktop:show-logs'); ipcMain.removeHandler('desktop:project:save'); ipcMain.removeHandler('desktop:project:open'); if (worker?.connected) worker.send({ protocolVersion: 1, type: 'shutdown' }); backend?.kill(); server?.close(); });

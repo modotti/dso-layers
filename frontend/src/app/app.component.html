@@ -6,6 +6,11 @@
       ><small>Bring your astrophotography to life through motion.</small>
     </div>
   </div>
+  <div class="project-actions" *ngIf="desktop">
+    <button type="button" [disabled]="projectFileBusy || busy" (click)="openProject()">Open project</button>
+    <button type="button" [disabled]="!project || projectFileBusy || busy" (click)="saveProject()">{{ projectFileBusy ? "Working…" : "Save project" }}</button>
+    <small *ngIf="project" [class.dirty]="projectDirty">{{ projectDirty ? "Unsaved changes" : "Saved" }}</small>
+  </div>
   <div
     class="imports"
     [class.playback-locked]="cameraPlayback"
@@ -176,7 +181,7 @@
         (cameraRollChange)="updateCameraRoll($event)"
         (playbackState)="handlePlaybackState($event)"
         (videoExportState)="handleVideoExportState($event)"
-        (historyChange)="editorHistory = $event"
+        (historyChange)="handleEditorHistory($event)"
         (diagnostics)="gpu = $event"
       ></aps-viewer>
       <button
