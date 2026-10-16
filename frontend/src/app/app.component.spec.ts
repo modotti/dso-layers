@@ -88,6 +88,30 @@ describe('AppComponent', () => {
     expect(added.id).not.toBe(previous.id);
     expect({ ...added, id: previous.id, text: previous.text }).toEqual(previous);
   });
+  it('centers the active caption horizontally without changing its vertical position', () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    component.addTextOverlay();
+    component.updateTextOverlay({ x: .18, y: .82 });
+    component.centerTextOverlayHorizontally();
+    expect(component.activeTextOverlay?.x).toBe(.5);
+    expect(component.activeTextOverlay?.y).toBe(.82);
+  });
+  it('centers the active caption vertically without changing its horizontal position', () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    component.addTextOverlay();
+    component.updateTextOverlay({ x: .18, y: .82 });
+    component.centerTextOverlayVertically();
+    expect(component.activeTextOverlay?.x).toBe(.18);
+    expect(component.activeTextOverlay?.y).toBe(.5);
+  });
+  it('limits caption rotation to the supported range', () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    component.addTextOverlay();
+    component.updateTextOverlayRotation(120);
+    expect(component.activeTextOverlay?.rotation).toBe(90);
+    component.updateTextOverlayRotation(-120);
+    expect(component.activeTextOverlay?.rotation).toBe(-90);
+  });
   it('chains a new camera movement from the previous endpoint', () => {
     const component = TestBed.createComponent(AppComponent).componentInstance;
     const end = { position: [1, 2, 3] as [number, number, number], target: [0, 0, 0] as [number, number, number], roll: 24 };

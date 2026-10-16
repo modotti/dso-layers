@@ -42,5 +42,5 @@ export type TextOverlayFont = 'Cabin' | 'Bitter' | 'DM Sans';
 export interface TextOverlay {
   id: string; text: string; enabled: boolean; start: number; duration: number; fadeIn: number; fadeOut: number;
   x: number; y: number; fontFamily: TextOverlayFont; fontSize: number; fontWeight: number; letterSpacing: number; lineHeight: number; color: string; opacity: number;
-  alignment: TextOverlayAlignment; shadow: boolean; background: boolean; motion: boolean;
+  alignment: TextOverlayAlignment; rotation?: number; shadow: boolean; background: boolean; motion: boolean;
 }

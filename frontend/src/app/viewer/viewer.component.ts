@@ -2165,10 +2165,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       if (
         point &&
         item?.mesh.visible &&
-        Math.abs(point.x - item.mesh.position.x) <=
-          item.mesh.geometry.parameters.width / 2 &&
-        Math.abs(point.y - item.baseY) <=
-          item.mesh.geometry.parameters.height / 2
+        this.isPointOverTextOverlay(point, item)
       ) {
         event.preventDefault();
         event.stopImmediatePropagation();
@@ -2205,17 +2202,21 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       const item = this.draggingOverlay.item;
       const halfWidth = item.mesh.geometry.parameters.width / 2;
       const halfHeight = item.mesh.geometry.parameters.height / 2;
+      const cosine = Math.abs(Math.cos(item.mesh.rotation.z));
+      const sine = Math.abs(Math.sin(item.mesh.rotation.z));
+      const extentX = halfWidth * cosine + halfHeight * sine;
+      const extentY = halfWidth * sine + halfHeight * cosine;
       const marginX = this.overlayWidth * 0.02;
       const marginY = this.overlayHeight * 0.02;
       const centerX = THREE.MathUtils.clamp(
         point.x - this.draggingOverlay.offsetX,
-        this.overlayX + marginX + halfWidth,
-        this.overlayX + this.overlayWidth - marginX - halfWidth,
+        this.overlayX + marginX + extentX,
+        this.overlayX + this.overlayWidth - marginX - extentX,
       );
       const centerY = THREE.MathUtils.clamp(
         point.y - this.draggingOverlay.offsetY,
-        this.overlayY + marginY + halfHeight,
-        this.overlayY + this.overlayHeight - marginY - halfHeight,
+        this.overlayY + marginY + extentY,
+        this.overlayY + this.overlayHeight - marginY - extentY,
       );
       item.mesh.position.x = centerX;
       item.mesh.position.y = item.baseY = centerY;
@@ -2236,10 +2237,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
         !!this.scene &&
         !!point &&
         !!item?.mesh.visible &&
-        Math.abs(point.x - item.mesh.position.x) <=
-          item.mesh.geometry.parameters.width / 2 &&
-        Math.abs(point.y - item.baseY) <=
-          item.mesh.geometry.parameters.height / 2;
+        this.isPointOverTextOverlay(point, item);
       if (this.renderer)
         this.renderer.domElement.style.cursor = overCaption ? "move" : "";
       return;
@@ -2280,6 +2278,15 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     if (this.renderer && !this.draggingOverlay)
       this.renderer.domElement.style.cursor = "";
   };
+  private isPointOverTextOverlay(point: THREE.Vector2, item: TextOverlayMesh): boolean {
+    const deltaX = point.x - item.mesh.position.x;
+    const deltaY = point.y - item.baseY;
+    const cosine = Math.cos(item.mesh.rotation.z);
+    const sine = Math.sin(item.mesh.rotation.z);
+    const localX = deltaX * cosine + deltaY * sine;
+    const localY = -deltaX * sine + deltaY * cosine;
+    return Math.abs(localX) <= item.mesh.geometry.parameters.width / 2 && Math.abs(localY) <= item.mesh.geometry.parameters.height / 2;
+  }
   private pointerUv(event: PointerEvent): THREE.Vector2 | null {
     if (!this.camera || !this.scene) return null;
     const canvas = this.renderer?.domElement;
@@ -2625,15 +2632,22 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       const marginY = viewportHeight * 0.02;
       const halfWidth = canvas.width / 2;
       const halfHeight = canvas.height / 2;
+      mesh.rotation.z = THREE.MathUtils.degToRad(
+        THREE.MathUtils.clamp(overlay.rotation ?? 0, -90, 90),
+      );
+      const cosine = Math.abs(Math.cos(mesh.rotation.z));
+      const sine = Math.abs(Math.sin(mesh.rotation.z));
+      const extentX = halfWidth * cosine + halfHeight * sine;
+      const extentY = halfWidth * sine + halfHeight * cosine;
       mesh.position.x = THREE.MathUtils.clamp(
         viewportX + THREE.MathUtils.clamp(overlay.x, 0, 1) * viewportWidth,
-        viewportX + marginX + halfWidth,
-        viewportX + viewportWidth - marginX - halfWidth,
+        viewportX + marginX + extentX,
+        viewportX + viewportWidth - marginX - extentX,
       );
       mesh.position.y = THREE.MathUtils.clamp(
         viewportY + THREE.MathUtils.clamp(overlay.y, 0, 1) * viewportHeight,
-        viewportY + marginY + halfHeight,
-        viewportY + viewportHeight - marginY - halfHeight,
+        viewportY + marginY + extentY,
+        viewportY + viewportHeight - marginY - extentY,
       );
       mesh.renderOrder = 1000;
       this.overlayWorld.add(mesh);
@@ -2656,6 +2670,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
           }),
         );
         selection.position.copy(mesh.position);
+        selection.rotation.z = mesh.rotation.z;
         selection.renderOrder = 1001;
         this.overlayWorld.add(selection);
       }

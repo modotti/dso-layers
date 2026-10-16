@@ -61,6 +61,8 @@
 .text-tabs .add-text { min-width: 32px; color: #91dfc0; border-color: #303748; background: #151a25; }
 .text-tabs .delete-text { min-width: auto; margin-left: auto; padding-inline: 8px; color: #d88b9f; border-color: #663747; background: #151a25; }
 .text-content { display: block; margin-top: 9px; }
+.caption-position-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 7px; }
+.caption-position-actions button { min-height: 28px; padding: 5px 9px; }
 .text-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 8px; }
 .text-grid label { min-width: 0; padding: 7px; border: 1px solid #252c3b; border-radius: 6px; background: #0e131d; }
 .text-grid label b { float: right; color: #cfc6ff; font-weight: 600; }

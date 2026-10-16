@@ -554,6 +554,22 @@
                   (ngModelChange)="updateTextOverlay({ text: $event })"
                 ></textarea>
               </label>
+              <div class="caption-position-actions">
+                <button
+                  type="button"
+                  title="Center caption horizontally in viewport"
+                  (click)="centerTextOverlayHorizontally()"
+                >
+                  Center horizontally
+                </button>
+                <button
+                  type="button"
+                  title="Center caption vertically in viewport"
+                  (click)="centerTextOverlayVertically()"
+                >
+                  Center vertically
+                </button>
+              </div>
               <div class="text-grid">
                 <label
                   >Start<input
@@ -657,6 +673,15 @@
                     (ngModelChange)="
                       updateTextOverlay({ lineHeight: +$event })
                     " /></label
+                ><label
+                  >Rotation <b>{{ (overlay.rotation ?? 0) | number: "1.0-0" }}°</b
+                  ><input
+                    type="range"
+                    min="-90"
+                    max="90"
+                    step="1"
+                    [ngModel]="overlay.rotation ?? 0"
+                    (ngModelChange)="updateTextOverlayRotation(+$event)" /></label
                 ><label
                   >Color<input
                     type="color"
