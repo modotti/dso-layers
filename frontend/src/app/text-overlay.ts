@@ -1,7 +1,7 @@
-import { TextOverlay } from './models';
+import { ImageOverlay, TextOverlay } from './models';
 
-export function textOverlayOpacity(overlay: TextOverlay, elapsed: number): number {
-  if (!overlay.enabled || !overlay.text.trim() || elapsed < overlay.start || elapsed > overlay.start + overlay.duration) return 0;
+export function textOverlayOpacity(overlay: TextOverlay | ImageOverlay, elapsed: number): number {
+  if (!overlay.enabled || ('text' in overlay && !overlay.text.trim()) || elapsed < overlay.start || elapsed > overlay.start + overlay.duration) return 0;
   const local = elapsed - overlay.start;
   const fadeIn = overlay.fadeIn > 0 ? Math.min(1, local / overlay.fadeIn) : 1;
   const remaining = overlay.duration - local;

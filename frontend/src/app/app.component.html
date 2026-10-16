@@ -88,10 +88,16 @@
           <ng-container *ngTemplateOutlet="depthOfFieldPanel"></ng-container>
         </details>
         <details class="workflow-section" *ngIf="project && !editorOpen">
-          <summary>
+          <summary (click)="activeOverlayKind = 'text'">
             <span>Captions</span><small>{{ textOverlays.length }}</small>
           </summary>
           <ng-container *ngTemplateOutlet="captionPanel"></ng-container>
+        </details>
+        <details class="workflow-section" *ngIf="project && !editorOpen">
+          <summary (click)="activeOverlayKind = 'image'">
+            <span>Image overlays</span><small>{{ imageOverlays.length }}</small>
+          </summary>
+          <ng-container *ngTemplateOutlet="imageOverlayPanel"></ng-container>
         </details>
         <details class="workflow-section" *ngIf="project && !editorOpen">
           <summary>
@@ -150,8 +156,10 @@
         [transitionMomentum]="transitionMomentum"
         [videoExport]="videoExport"
         [textOverlays]="textOverlays"
-        [activeTextOverlayId]="activeTextOverlay?.id || null"
+        [imageOverlays]="imageOverlays"
+        [activeOverlayId]="activeOverlayId"
         (textOverlayPositionChange)="updateTextOverlayPosition($event)"
+        (imageOverlayPositionChange)="updateImageOverlayPosition($event)"
         (cameraPathChange)="updateCameraPath($event)"
         (cameraSequenceChange)="updateCameraSequence($event)"
         (cameraRollChange)="updateCameraRoll($event)"
@@ -527,7 +535,7 @@
               <button
                 *ngFor="let item of textOverlays; index as index"
                 [class.active]="activeTextOverlayIndex === index"
-                (click)="activeTextOverlayIndex = index"
+                (click)="selectTextOverlay(index)"
               >
                 Caption {{ index + 1 }}</button
               ><button
@@ -732,6 +740,58 @@
                 >
               </div></ng-container
             >
+          </div>
+        </div></ng-template
+      >
+      <ng-template #imageOverlayPanel
+        ><div class="video-export caption-controls">
+          <div class="text-overlays image-overlays">
+            <div class="text-tabs">
+              <button
+                *ngFor="let item of imageOverlays; index as index"
+                [class.active]="activeImageOverlayIndex === index"
+                [title]="item.name"
+                (click)="selectImageOverlay(index)"
+              >
+                Image {{ index + 1 }}</button
+              ><label
+                class="add-image"
+                title="Add PNG overlay"
+                [class.disabled]="imageOverlays.length >= maxImageOverlays"
+                >＋<input
+                  type="file"
+                  accept="image/png,.png"
+                  [disabled]="imageOverlays.length >= maxImageOverlays"
+                  (change)="addImageOverlay($event)" /></label
+              ><button
+                class="delete-text"
+                *ngIf="activeImageOverlay"
+                title="Remove image overlay"
+                (click)="removeImageOverlay()"
+              >
+                Remove
+              </button>
+            </div>
+            <ng-container *ngIf="activeImageOverlay as overlay">
+              <p class="overlay-file-name" [title]="overlay.name">{{ overlay.name }}</p>
+              <div class="caption-position-actions">
+                <button type="button" title="Center image horizontally in viewport" (click)="centerImageOverlayHorizontally()">Center horizontally</button>
+                <button type="button" title="Center image vertically in viewport" (click)="centerImageOverlayVertically()">Center vertically</button>
+              </div>
+              <div class="text-grid">
+                <label>Start<input type="number" min="0" [max]="cameraSequenceDuration" step="0.1" [ngModel]="overlay.start" (ngModelChange)="updateImageOverlay({ start: +$event })" /></label>
+                <label>Duration<input type="number" min="0.2" [max]="cameraSequenceDuration" step="0.1" [ngModel]="overlay.duration" (ngModelChange)="updateImageOverlay({ duration: +$event })" /></label>
+                <label>Fade in<input type="number" min="0" step="0.1" [ngModel]="overlay.fadeIn" (ngModelChange)="updateImageOverlay({ fadeIn: +$event })" /></label>
+                <label>Fade out<input type="number" min="0" step="0.1" [ngModel]="overlay.fadeOut" (ngModelChange)="updateImageOverlay({ fadeOut: +$event })" /></label>
+                <label>Size <b>{{ overlay.size | number: "1.0-0" }}%</b><input type="range" min="5" max="100" step="1" [ngModel]="overlay.size" (ngModelChange)="updateImageOverlay({ size: +$event })" /></label>
+                <label>Rotation <b>{{ overlay.rotation | number: "1.0-0" }}°</b><input type="range" min="-90" max="90" step="1" [ngModel]="overlay.rotation" (ngModelChange)="updateImageOverlayRotation(+$event)" /></label>
+                <label>Opacity <b>{{ overlay.opacity | percent: "1.0-0" }}</b><input type="range" min="0" max="1" step="0.05" [ngModel]="overlay.opacity" (ngModelChange)="updateImageOverlay({ opacity: +$event })" /></label>
+              </div>
+              <div class="text-toggles">
+                <label><input type="checkbox" [ngModel]="overlay.enabled" (ngModelChange)="updateImageOverlay({ enabled: $event })" /> Visible</label>
+              </div>
+            </ng-container>
+            <p class="overlay-empty" *ngIf="!imageOverlays.length">Add a PNG to place it over the video.</p>
           </div>
         </div></ng-template
       >

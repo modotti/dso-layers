@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CameraMovement, CameraPathFlow, CameraPathPose, TextOverlay } from './models';
+import { CameraMovement, CameraPathFlow, CameraPathPose, ImageOverlay, TextOverlay } from './models';
 import { cinematicPathPhase } from './camera-path-flow';
 import { interpolateFocusDistance } from './focus-distance';
 import { textOverlayOpacity } from './text-overlay';
@@ -14,7 +14,7 @@ export interface TimelineState extends CameraPathPose {
 export interface TimelineEvaluatorOptions {
   flow: CameraPathFlow;
   transitionMomentum: number;
-  overlays?: readonly TextOverlay[];
+  overlays?: readonly (TextOverlay | ImageOverlay)[];
 }
 
 const durationOf = (movement: CameraMovement): number => THREE.MathUtils.clamp(movement.duration, 1, 20);
@@ -47,7 +47,7 @@ export function easeTimelinePhase(phase: number, easing: CameraMovement['easing'
   return value ** 3 * (value * (value * 6 - 15) + 10);
 }
 
-function overlaysAt(overlays: readonly TextOverlay[], timeSeconds: number): TimelineState['overlays'] {
+function overlaysAt(overlays: readonly (TextOverlay | ImageOverlay)[], timeSeconds: number): TimelineState['overlays'] {
   return overlays.map(overlay => ({
     id: overlay.id,
     opacity: textOverlayOpacity(overlay, timeSeconds) * THREE.MathUtils.clamp(overlay.opacity, 0, 1),

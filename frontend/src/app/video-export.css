@@ -59,8 +59,13 @@
 .text-tabs button { flex: 0 0 auto; min-width: 62px; padding: 7px 5px; color: #929cb0; border-color: #303748; background: #151a25; }
 .text-tabs button.active { border-color: #8d7bed; color: #e0d9ff; background: #342b64; }
 .text-tabs .add-text { min-width: 32px; color: #91dfc0; border-color: #303748; background: #151a25; }
+.text-tabs .add-image { display: grid; place-items: center; min-width: 32px; min-height: 30px; box-sizing: border-box; border: 1px solid #303748; border-radius: 5px; color: #91dfc0; background: #151a25; cursor: pointer; }
+.text-tabs .add-image.disabled { opacity: .45; cursor: not-allowed; }
+.text-tabs .add-image input { display: none; }
 .text-tabs .delete-text { min-width: auto; margin-left: auto; padding-inline: 8px; color: #d88b9f; border-color: #663747; background: #151a25; }
 .text-content { display: block; margin-top: 9px; }
+.overlay-file-name, .overlay-empty { overflow: hidden; margin: 9px 0 0; color: #9ea7bb; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.overlay-empty { white-space: normal; line-height: 1.45; }
 .caption-position-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 7px; }
 .caption-position-actions button { min-height: 28px; padding: 5px 9px; }
 .text-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 8px; }

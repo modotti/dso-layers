@@ -1,4 +1,4 @@
-import { TextOverlay } from './models';
+import { ImageOverlay, TextOverlay } from './models';
 import { textOverlayOpacity } from './text-overlay';
 
 describe('textOverlayOpacity', () => {
@@ -22,5 +22,15 @@ describe('textOverlayOpacity', () => {
     context.font = '600 32px Cabin, sans-serif';
     expect(context.font).toContain('600');
     expect(context.font).toContain('Cabin');
+  });
+});
+
+describe('image overlay opacity', () => {
+  const overlay: ImageOverlay = { id: 'logo', name: 'logo.png', dataUrl: 'data:image/png;base64,AA==', enabled: true, start: 2, duration: 4, fadeIn: 1, fadeOut: 1, x: .5, y: .5, size: 25, rotation: 0, opacity: .8 };
+  it('uses the same timing and fades as captions', () => {
+    expect(textOverlayOpacity(overlay, 1.9)).toBe(0);
+    expect(textOverlayOpacity(overlay, 2.5)).toBe(.5);
+    expect(textOverlayOpacity(overlay, 4)).toBe(1);
+    expect(textOverlayOpacity(overlay, 5.5)).toBe(.5);
   });
 });

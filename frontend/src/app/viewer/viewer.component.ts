@@ -29,6 +29,7 @@ import {
   DepthOfFieldSettings,
   EditorHistoryState,
   GpuDiagnostics,
+  ImageOverlay,
   LightingSettings,
   ParallaxPath,
   SceneDocument,
@@ -92,7 +93,7 @@ interface EditableMaps {
   redo: EditSnapshot[];
 }
 interface TextOverlayMesh {
-  overlay: TextOverlay;
+  overlay: TextOverlay | ImageOverlay;
   mesh: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   selection?: THREE.LineLoop;
   baseY: number;
@@ -144,7 +145,8 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     lightEffect: "none",
   };
   @Input() textOverlays: TextOverlay[] = [];
-  @Input() activeTextOverlayId: string | null = null;
+  @Input() imageOverlays: ImageOverlay[] = [];
+  @Input() activeOverlayId: string | null = null;
   @Input() editorEnabled = false;
   @Input() brush: DepthBrushSettings = {
     tool: "near",
@@ -159,6 +161,11 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Output() playbackState = new EventEmitter<boolean>();
   @Output() videoExportState = new EventEmitter<VideoExportState>();
   @Output() textOverlayPositionChange = new EventEmitter<{
+    id: string;
+    x: number;
+    y: number;
+  }>();
+  @Output() imageOverlayPositionChange = new EventEmitter<{
     id: string;
     x: number;
     y: number;
@@ -182,6 +189,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
   private crossfadeOutgoingMaterial?: THREE.MeshBasicMaterial;
   private activeCrossfade?: TimelineState["crossfade"];
   private overlayMeshes: TextOverlayMesh[] = [];
+  private overlayGeneration = 0;
   private overlayWidth = 0;
   private overlayHeight = 0;
   private overlayX = 0;
@@ -332,7 +340,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       this.rebuildTextOverlays();
     }
     if (changes["depthOfField"]) this.syncDepthOfField();
-    if (changes["textOverlays"] || changes["activeTextOverlayId"])
+    if (changes["textOverlays"] || changes["imageOverlays"] || changes["activeOverlayId"])
       this.rebuildTextOverlays();
     if (changes["activeMovementIndex"]) {
       this.scrubProgress = 0;
@@ -549,7 +557,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
         ? createTimelineEvaluator(movements, {
             flow: this.cameraPathFlow,
             transitionMomentum: this.transitionMomentum,
-            overlays: this.textOverlays,
+            overlays: [...this.textOverlays, ...this.imageOverlays],
           })
         : undefined;
   }
@@ -636,9 +644,9 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     this.setPlaybackMode(true, !exporting);
     return true;
   }
-  exportCameraPath(): void {
+  async exportCameraPath(): Promise<void> {
     if (typeof HTMLCanvasElement.prototype.toBlob === "function") {
-      void this.exportCameraPathOffline();
+      await this.exportCameraPathOffline();
       return;
     }
     const movements = this.cameraMovements.filter(
@@ -704,7 +712,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       1,
     );
     this.bokehPass?.setQuality("high");
-    this.rebuildTextOverlays();
+    await this.rebuildTextOverlays();
     const frameX = (viewportBounds.width - this.exportFrameWidth) / 2;
     const frameY = (viewportBounds.height - this.exportFrameHeight) / 2;
     this.camera.fov = this.exportFov;
@@ -823,7 +831,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     const evaluate = createTimelineEvaluator(movements, {
       flow: this.cameraPathFlow,
       transitionMomentum: this.transitionMomentum,
-      overlays: this.textOverlays,
+      overlays: [...this.textOverlays, ...this.imageOverlays],
     });
     const viewportBounds = this.host.nativeElement.getBoundingClientRect();
     const viewport = outputViewportProjection(
@@ -871,7 +879,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
         this.camera!.filmOffset = 0;
         this.camera!.updateProjectionMatrix();
         this.bokehPass?.setQuality(quality === "draft" ? "preview" : "high");
-        this.rebuildTextOverlays();
+        await this.rebuildTextOverlays();
         this.setVideoDithering(true);
       },
       renderFrameAt: async (request) => {
@@ -949,6 +957,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       flow: this.cameraPathFlow,
       transitionMomentum: this.transitionMomentum,
       overlays: this.textOverlays,
+      imageOverlays: this.imageOverlays,
       output: {
         width: outputWidth,
         height: outputHeight,
@@ -2160,7 +2169,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
     ) {
       const point = this.overlayPointer(event);
       const item = this.overlayMeshes.find(
-        (candidate) => candidate.overlay.id === this.activeTextOverlayId,
+        (candidate) => candidate.overlay.id === this.activeOverlayId,
       );
       if (
         point &&
@@ -2223,15 +2232,17 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       item.selection?.position.set(centerX, centerY, 0);
       const x = (centerX - this.overlayX) / this.overlayWidth;
       const y = (centerY - this.overlayY) / this.overlayHeight;
-      this.zone.run(() =>
-        this.textOverlayPositionChange.emit({ id: item.overlay.id, x, y }),
-      );
+      this.zone.run(() => {
+        const change = { id: item.overlay.id, x, y };
+        if ("dataUrl" in item.overlay) this.imageOverlayPositionChange.emit(change);
+        else this.textOverlayPositionChange.emit(change);
+      });
       return;
     }
     if (!this.editorEnabled) {
       const point = this.overlayPointer(event);
       const item = this.overlayMeshes.find(
-        (candidate) => candidate.overlay.id === this.activeTextOverlayId,
+        (candidate) => candidate.overlay.id === this.activeOverlayId,
       );
       const overCaption =
         !!this.scene &&
@@ -2503,8 +2514,9 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
           maxTextureSize,
     });
   }
-  private rebuildTextOverlays(): void {
+  private async rebuildTextOverlays(): Promise<void> {
     if (!this.renderer) return;
+    const overlayGeneration = ++this.overlayGeneration;
     this.disposeTextOverlays();
     const size = this.renderer.getDrawingBufferSize(new THREE.Vector2());
     const width = Math.max(1, Math.round(size.x));
@@ -2652,7 +2664,7 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       mesh.renderOrder = 1000;
       this.overlayWorld.add(mesh);
       let selection: THREE.LineLoop | undefined;
-      if (overlay.id === this.activeTextOverlayId) {
+      if (overlay.id === this.activeOverlayId) {
         const border = new THREE.BufferGeometry().setFromPoints([
           new THREE.Vector3(-halfWidth, -halfHeight, 0),
           new THREE.Vector3(halfWidth, -halfHeight, 0),
@@ -2680,6 +2692,56 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
         selection,
         baseY: mesh.position.y,
       });
+    }
+    for (const overlay of this.imageOverlays) {
+      try {
+        const texture = await new THREE.TextureLoader().loadAsync(overlay.dataUrl);
+        if (this.destroyed || overlayGeneration !== this.overlayGeneration || !this.imageOverlays.some(item => item.id === overlay.id)) { texture.dispose(); return; }
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.minFilter = texture.magFilter = THREE.LinearFilter;
+        texture.generateMipmaps = false;
+        texture.premultiplyAlpha = true;
+        const image = texture.image as { width?: number; height?: number };
+        const aspect = Math.max(1, image.width ?? 1) / Math.max(1, image.height ?? 1);
+        let planeWidth = viewportWidth * THREE.MathUtils.clamp(overlay.size, 5, 100) / 100;
+        let planeHeight = planeWidth / aspect;
+        const rotation = THREE.MathUtils.degToRad(THREE.MathUtils.clamp(overlay.rotation, -90, 90));
+        const cosine = Math.abs(Math.cos(rotation));
+        const sine = Math.abs(Math.sin(rotation));
+        const rotatedWidth = planeWidth * cosine + planeHeight * sine;
+        const rotatedHeight = planeWidth * sine + planeHeight * cosine;
+        const fit = Math.min(1, viewportWidth * .96 / rotatedWidth, viewportHeight * .96 / rotatedHeight);
+        planeWidth *= fit;
+        planeHeight *= fit;
+        const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false, toneMapped: false });
+        const mesh = new THREE.Mesh(new THREE.PlaneGeometry(planeWidth, planeHeight), material);
+        mesh.rotation.z = rotation;
+        const halfWidth = planeWidth / 2;
+        const halfHeight = planeHeight / 2;
+        const extentX = halfWidth * cosine + halfHeight * sine;
+        const extentY = halfWidth * sine + halfHeight * cosine;
+        const marginX = viewportWidth * .02;
+        const marginY = viewportHeight * .02;
+        mesh.position.x = THREE.MathUtils.clamp(viewportX + THREE.MathUtils.clamp(overlay.x, 0, 1) * viewportWidth, viewportX + marginX + extentX, viewportX + viewportWidth - marginX - extentX);
+        mesh.position.y = THREE.MathUtils.clamp(viewportY + THREE.MathUtils.clamp(overlay.y, 0, 1) * viewportHeight, viewportY + marginY + extentY, viewportY + viewportHeight - marginY - extentY);
+        mesh.renderOrder = 1000;
+        this.overlayWorld.add(mesh);
+        let selection: THREE.LineLoop | undefined;
+        if (overlay.id === this.activeOverlayId) {
+          const border = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(-halfWidth, -halfHeight, 0), new THREE.Vector3(halfWidth, -halfHeight, 0),
+            new THREE.Vector3(halfWidth, halfHeight, 0), new THREE.Vector3(-halfWidth, halfHeight, 0),
+          ]);
+          selection = new THREE.LineLoop(border, new THREE.LineBasicMaterial({ color: 0xafa1ff, transparent: true, opacity: .75, depthTest: false, depthWrite: false }));
+          selection.position.copy(mesh.position);
+          selection.rotation.z = rotation;
+          selection.renderOrder = 1001;
+          this.overlayWorld.add(selection);
+        }
+        this.overlayMeshes.push({ overlay, mesh, selection, baseY: mesh.position.y });
+      } catch {
+        /* Ignore image data that can no longer be decoded. */
+      }
     }
   }
   private disposeTextOverlays(): void {
@@ -2714,9 +2776,8 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
         1,
         local / Math.max(0.2, item.overlay.fadeIn || 0.8),
       );
-      item.mesh.position.y =
-        item.baseY +
-        (item.overlay.motion ? (progress - 1) * this.overlayHeight * 0.012 : 0);
+      item.mesh.position.y = item.baseY +
+        ("motion" in item.overlay && item.overlay.motion ? (progress - 1) * this.overlayHeight * 0.012 : 0);
       item.mesh.visible = opacity > 0;
       if (item.selection) {
         item.selection.position.set(

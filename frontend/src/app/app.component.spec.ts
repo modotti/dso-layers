@@ -112,6 +112,17 @@ describe('AppComponent', () => {
     component.updateTextOverlayRotation(-120);
     expect(component.activeTextOverlay?.rotation).toBe(-90);
   });
+  it('positions and bounds image overlays independently', () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    component.imageOverlays = [{ id: 'image-1', name: 'logo.png', dataUrl: 'data:image/png;base64,AA==', enabled: true, start: 0, duration: 5, fadeIn: .5, fadeOut: .5, x: .2, y: .8, size: 25, rotation: 0, opacity: 1 }];
+    component.centerImageOverlayHorizontally();
+    expect(component.activeImageOverlay?.x).toBe(.5);
+    expect(component.activeImageOverlay?.y).toBe(.8);
+    component.centerImageOverlayVertically();
+    component.updateImageOverlayRotation(120);
+    expect(component.activeImageOverlay?.y).toBe(.5);
+    expect(component.activeImageOverlay?.rotation).toBe(90);
+  });
   it('chains a new camera movement from the previous endpoint', () => {
     const component = TestBed.createComponent(AppComponent).componentInstance;
     const end = { position: [1, 2, 3] as [number, number, number], target: [0, 0, 0] as [number, number, number], roll: 24 };

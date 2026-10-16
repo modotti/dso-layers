@@ -1,4 +1,4 @@
-import { CameraMovement, CameraPathFlow, SceneDocument, TextOverlay, VideoExportSettings } from './models';
+import { CameraMovement, CameraPathFlow, ImageOverlay, SceneDocument, TextOverlay, VideoExportSettings } from './models';
 
 export type RenderJobStatus = 'queued' | 'preparing' | 'rendering' | 'encoding' | 'completed' | 'cancelled' | 'failed';
 export type RenderAssetRole = 'color' | 'depth' | 'inverted-depth' | 'confidence';
@@ -9,7 +9,7 @@ export interface RenderJobManifest {
   jobId: string;
   scene: SceneDocument;
   assets: RenderJobAsset[];
-  timeline: { movements: CameraMovement[]; flow: CameraPathFlow; transitionMomentum: number; overlays: TextOverlay[] };
+  timeline: { movements: CameraMovement[]; flow: CameraPathFlow; transitionMomentum: number; overlays: TextOverlay[]; imageOverlays?: ImageOverlay[] };
   output: { width: number; height: number; fps: number; quality: 'draft' | 'final'; lightEffect: VideoExportSettings['lightEffect'] };
 }
 
@@ -41,6 +41,7 @@ export function createRenderJobManifest(input: {
   flow: CameraPathFlow;
   transitionMomentum: number;
   overlays: TextOverlay[];
+  imageOverlays?: ImageOverlay[];
   output: RenderJobManifest['output'];
   baseUri: string;
 }): RenderJobManifest {
@@ -59,7 +60,7 @@ export function createRenderJobManifest(input: {
     jobId: input.jobId,
     scene: structuredClone(input.scene),
     assets,
-    timeline: { movements: structuredClone(input.movements), flow: input.flow, transitionMomentum: input.transitionMomentum, overlays: structuredClone(input.overlays) },
+    timeline: { movements: structuredClone(input.movements), flow: input.flow, transitionMomentum: input.transitionMomentum, overlays: structuredClone(input.overlays), imageOverlays: structuredClone(input.imageOverlays ?? []) },
     output: { ...input.output },
   };
 }

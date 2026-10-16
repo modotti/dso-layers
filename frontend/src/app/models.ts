@@ -39,8 +39,14 @@ export interface VideoRenderBenchmark { width: number; height: number; fps: numb
 export interface VideoExportState { exporting: boolean; error?: string; benchmark?: VideoRenderBenchmark }
 export type TextOverlayAlignment = 'left' | 'center' | 'right';
 export type TextOverlayFont = 'Cabin' | 'Bitter' | 'DM Sans';
-export interface TextOverlay {
-  id: string; text: string; enabled: boolean; start: number; duration: number; fadeIn: number; fadeOut: number;
-  x: number; y: number; fontFamily: TextOverlayFont; fontSize: number; fontWeight: number; letterSpacing: number; lineHeight: number; color: string; opacity: number;
+export interface OverlayTiming {
+  id: string; enabled: boolean; start: number; duration: number; fadeIn: number; fadeOut: number; opacity: number;
+}
+export interface TextOverlay extends OverlayTiming {
+  text: string;
+  x: number; y: number; fontFamily: TextOverlayFont; fontSize: number; fontWeight: number; letterSpacing: number; lineHeight: number; color: string;
   alignment: TextOverlayAlignment; rotation?: number; shadow: boolean; background: boolean; motion: boolean;
+}
+export interface ImageOverlay extends OverlayTiming {
+  name: string; dataUrl: string; x: number; y: number; size: number; rotation: number;
 }
