@@ -767,11 +767,11 @@
                 Image {{ index + 1 }}</button
               ><label
                 class="add-image"
-                title="Add PNG overlay"
+                title="Add PNG or JPEG overlay"
                 [class.disabled]="imageOverlays.length >= maxImageOverlays"
                 >＋<input
                   type="file"
-                  accept="image/png,.png"
+                  accept="image/png,image/jpeg,.png,.jpg,.jpeg"
                   [disabled]="imageOverlays.length >= maxImageOverlays"
                   (change)="addImageOverlay($event)" /></label
               ><button
@@ -802,7 +802,7 @@
                 <label><input type="checkbox" [ngModel]="overlay.enabled" (ngModelChange)="updateImageOverlay({ enabled: $event })" /> Visible</label>
               </div>
             </ng-container>
-            <p class="overlay-empty" *ngIf="!imageOverlays.length">Add a PNG to place it over the video.</p>
+            <p class="overlay-empty" *ngIf="!imageOverlays.length">Add a PNG or JPEG to place it over the video.</p>
           </div>
         </div></ng-template
       >

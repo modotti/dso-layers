@@ -130,6 +130,31 @@ describe('AppComponent', () => {
     expect(component.activeImageOverlay?.y).toBe(.5);
     expect(component.activeImageOverlay?.rotation).toBe(90);
   });
+  it('accepts JPEG image overlays', async () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    const file = new File(['jpeg'], 'logo.jpg', { type: 'image/jpeg' });
+    const input = { files: [file], value: 'logo.jpg' };
+    component.addImageOverlay({ target: input } as unknown as Event);
+    await new Promise<void>((resolve, reject) => {
+      const deadline = Date.now() + 1000;
+      const check = () => {
+        if (component.imageOverlays.length) resolve();
+        else if (Date.now() >= deadline) reject(new Error('JPEG overlay was not loaded'));
+        else setTimeout(check, 10);
+      };
+      check();
+    });
+    expect(component.imageOverlays.length).toBe(1);
+    expect(component.activeImageOverlay?.name).toBe('logo.jpg');
+    expect(component.activeImageOverlay?.dataUrl).toContain('data:image/jpeg;base64,');
+  });
+  it('rejects unsupported image overlay formats', () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    const file = new File(['gif'], 'logo.gif', { type: 'image/gif' });
+    component.addImageOverlay({ target: { files: [file], value: 'logo.gif' } } as unknown as Event);
+    expect(component.imageOverlays).toEqual([]);
+    expect(component.error).toBe('Image overlays must use the PNG or JPEG format.');
+  });
   it('chains a new camera movement from the previous endpoint', () => {
     const component = TestBed.createComponent(AppComponent).componentInstance;
     const end = { position: [1, 2, 3] as [number, number, number], target: [0, 0, 0] as [number, number, number], roll: 24 };
