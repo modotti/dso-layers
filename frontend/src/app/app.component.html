@@ -799,7 +799,7 @@
                 <label>Duration<input type="number" min="0.2" [max]="cameraSequenceDuration" step="0.1" [ngModel]="overlay.duration" (ngModelChange)="updateImageOverlay({ duration: +$event })" /></label>
                 <label>Fade in<input type="number" min="0" step="0.1" [ngModel]="overlay.fadeIn" (ngModelChange)="updateImageOverlay({ fadeIn: +$event })" /></label>
                 <label>Fade out<input type="number" min="0" step="0.1" [ngModel]="overlay.fadeOut" (ngModelChange)="updateImageOverlay({ fadeOut: +$event })" /></label>
-                <label>Size <b>{{ overlay.size | number: "1.0-0" }}%</b><input type="range" min="5" max="100" step="1" [ngModel]="overlay.size" (ngModelChange)="updateImageOverlay({ size: +$event })" /></label>
+                <label>Size <b>{{ overlay.size | number: "1.0-0" }}%</b><input type="range" min="5" [max]="maxImageOverlaySize" step="1" [ngModel]="overlay.size" (ngModelChange)="updateImageOverlaySize(+$event)" /></label>
                 <label>Rotation <b>{{ overlay.rotation | number: "1.0-0" }}°</b><input type="range" min="-90" max="90" step="1" [ngModel]="overlay.rotation" (ngModelChange)="updateImageOverlayRotation(+$event)" /></label>
                 <label>Opacity <b>{{ overlay.opacity | percent: "1.0-0" }}</b><input type="range" min="0" max="1" step="0.05" [ngModel]="overlay.opacity" (ngModelChange)="updateImageOverlay({ opacity: +$event })" /></label>
               </div>

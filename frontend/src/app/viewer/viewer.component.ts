@@ -2217,16 +2217,8 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
       const extentY = halfWidth * sine + halfHeight * cosine;
       const marginX = this.overlayWidth * 0.02;
       const marginY = this.overlayHeight * 0.02;
-      const centerX = THREE.MathUtils.clamp(
-        point.x - this.draggingOverlay.offsetX,
-        this.overlayX + marginX + extentX,
-        this.overlayX + this.overlayWidth - marginX - extentX,
-      );
-      const centerY = THREE.MathUtils.clamp(
-        point.y - this.draggingOverlay.offsetY,
-        this.overlayY + marginY + extentY,
-        this.overlayY + this.overlayHeight - marginY - extentY,
-      );
+      const centerX = this.clampOverlayCenter(point.x - this.draggingOverlay.offsetX, this.overlayX, this.overlayWidth, marginX, extentX);
+      const centerY = this.clampOverlayCenter(point.y - this.draggingOverlay.offsetY, this.overlayY, this.overlayHeight, marginY, extentY);
       item.mesh.position.x = centerX;
       item.mesh.position.y = item.baseY = centerY;
       item.selection?.position.set(centerX, centerY, 0);
@@ -2523,6 +2515,11 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
           maxTextureSize,
     });
   }
+  private clampOverlayCenter(value: number, origin: number, length: number, margin: number, extent: number): number {
+    const firstBound = origin + margin + extent;
+    const secondBound = origin + length - margin - extent;
+    return THREE.MathUtils.clamp(value, Math.min(firstBound, secondBound), Math.max(firstBound, secondBound));
+  }
   private async rebuildTextOverlays(): Promise<void> {
     if (!this.renderer) return;
     const overlayGeneration = ++this.overlayGeneration;
@@ -2712,16 +2709,11 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
         texture.premultiplyAlpha = true;
         const image = texture.image as { width?: number; height?: number };
         const aspect = Math.max(1, image.width ?? 1) / Math.max(1, image.height ?? 1);
-        let planeWidth = viewportWidth * THREE.MathUtils.clamp(overlay.size, 5, 100) / 100;
-        let planeHeight = planeWidth / aspect;
+        const planeWidth = viewportWidth * THREE.MathUtils.clamp(overlay.size, 5, 300) / 100;
+        const planeHeight = planeWidth / aspect;
         const rotation = THREE.MathUtils.degToRad(THREE.MathUtils.clamp(overlay.rotation, -90, 90));
         const cosine = Math.abs(Math.cos(rotation));
         const sine = Math.abs(Math.sin(rotation));
-        const rotatedWidth = planeWidth * cosine + planeHeight * sine;
-        const rotatedHeight = planeWidth * sine + planeHeight * cosine;
-        const fit = Math.min(1, viewportWidth * .96 / rotatedWidth, viewportHeight * .96 / rotatedHeight);
-        planeWidth *= fit;
-        planeHeight *= fit;
         const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false, toneMapped: false });
         const mesh = new THREE.Mesh(new THREE.PlaneGeometry(planeWidth, planeHeight), material);
         mesh.rotation.z = rotation;
@@ -2731,8 +2723,8 @@ export class ViewerComponent implements AfterViewInit, OnChanges, OnDestroy {
         const extentY = halfWidth * sine + halfHeight * cosine;
         const marginX = viewportWidth * .02;
         const marginY = viewportHeight * .02;
-        mesh.position.x = THREE.MathUtils.clamp(viewportX + THREE.MathUtils.clamp(overlay.x, 0, 1) * viewportWidth, viewportX + marginX + extentX, viewportX + viewportWidth - marginX - extentX);
-        mesh.position.y = THREE.MathUtils.clamp(viewportY + THREE.MathUtils.clamp(overlay.y, 0, 1) * viewportHeight, viewportY + marginY + extentY, viewportY + viewportHeight - marginY - extentY);
+        mesh.position.x = this.clampOverlayCenter(viewportX + THREE.MathUtils.clamp(overlay.x, 0, 1) * viewportWidth, viewportX, viewportWidth, marginX, extentX);
+        mesh.position.y = this.clampOverlayCenter(viewportY + THREE.MathUtils.clamp(overlay.y, 0, 1) * viewportHeight, viewportY, viewportHeight, marginY, extentY);
         mesh.renderOrder = 1000;
         this.overlayWorld.add(mesh);
         let selection: THREE.LineLoop | undefined;

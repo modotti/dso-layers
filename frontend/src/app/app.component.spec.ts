@@ -130,6 +130,14 @@ describe('AppComponent', () => {
     expect(component.activeImageOverlay?.y).toBe(.5);
     expect(component.activeImageOverlay?.rotation).toBe(90);
   });
+  it('allows image overlays to grow beyond the viewport', () => {
+    const component = TestBed.createComponent(AppComponent).componentInstance;
+    component.imageOverlays = [{ id: 'image-1', name: 'logo.png', dataUrl: 'data:image/png;base64,AA==', enabled: true, start: 0, duration: 5, fadeIn: .5, fadeOut: .5, x: .5, y: .5, size: 25, rotation: 0, opacity: 1 }];
+    component.updateImageOverlaySize(250);
+    expect(component.activeImageOverlay?.size).toBe(250);
+    component.updateImageOverlaySize(500);
+    expect(component.activeImageOverlay?.size).toBe(component.maxImageOverlaySize);
+  });
   it('accepts JPEG image overlays', async () => {
     const component = TestBed.createComponent(AppComponent).componentInstance;
     const file = new File(['jpeg'], 'logo.jpg', { type: 'image/jpeg' });
